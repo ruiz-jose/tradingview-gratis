@@ -41,6 +41,7 @@ import {
 import { formatPrice, formatVolume } from "@/lib/format";
 import { IndicatorPill } from "./IndicatorPill";
 import { MeasureOverlay } from "./MeasureOverlay";
+import { useTelegramAlerts } from "@/hooks/useTelegramAlerts";
 
 // Ordered list of subpane indicators (determines pane slot assignment)
 const SUBPANE_ORDER: IndicatorKey[] = ["rsi", "macd", "stochrsi", "adx", "cvd", "atr", "chop"];
@@ -187,6 +188,8 @@ export function PriceChart({ symbol, timeframe }: Props) {
   const [measure, setMeasure]   = useState<MeasureState>(INITIAL_MEASURE);
   const [renderTick, setRenderTick] = useState(0);
   const measureRef = useRef(measure); measureRef.current = measure;
+
+  useTelegramAlerts(trendResult, symbol, timeframe);
 
   function recomputePaneOffsets() {
     if (!chartRef.current) return;

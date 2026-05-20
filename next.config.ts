@@ -1,9 +1,9 @@
 import type { NextConfig } from "next";
 
-const isProd = process.env.NODE_ENV === "production";
+const isStaticExport = process.env.NEXT_STATIC_EXPORT === "true";
 
 const nextConfig: NextConfig = {
-  ...(isProd && {
+  ...(isStaticExport && {
     output: "export",
     basePath: "/tradingview-gratis",
   }),
