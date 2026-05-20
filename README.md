@@ -17,7 +17,7 @@ Plataforma de charts crypto construida sobre los datos públicos de **Binance** 
 - 🎨 **Visual idéntica a TradingView** (paleta, fuentes, layout)
 - 💾 **Persistencia** en localStorage (símbolo, timeframe, indicadores)
 - 🔌 **Reconexión robusta** del WebSocket con backoff exponencial
-- 🌐 100% client-side — deploy estático en Vercel/Cloudflare
+- 🌐 100% client-side — deploy estático en GitHub Pages / Vercel / Cloudflare
 
 ## 🚀 Empezar
 
@@ -74,14 +74,36 @@ src/
     └── format.ts              # formatPrice / formatPct / formatVolume
 ```
 
-## 🌐 Deploy a Vercel
+## 🌐 Deploy
+
+### GitHub Pages (automático)
+
+La app se despliega automáticamente en cada push a `master` vía GitHub Actions.
+
+**URL pública:** [https://ruiz-jose.github.io/tradingview-gratis/](https://ruiz-jose.github.io/tradingview-gratis/)
+
+Configuración incluida en el repo:
+- `.github/workflows/deploy.yml` — build + deploy automático
+- `next.config.ts` — `output: export`, `basePath`, `trailingSlash`, `images.unoptimized`
+
+> **Setup inicial del repo (una sola vez):**
+> `Settings → Pages → Source → GitHub Actions`
+> `Settings → Environments → github-pages → Deployment branches → agregar master`
+
+### Build estático local
+
+```bash
+npm run build   # genera la carpeta out/
+```
+
+### Vercel
 
 ```bash
 npm i -g vercel
 vercel
 ```
 
-O conectá el repo en [vercel.com/new](https://vercel.com/new) y deploy automático. No hay variables de entorno — todo es cliente.
+O conectá el repo en [vercel.com/new](https://vercel.com/new). No hay variables de entorno — todo es cliente.
 
 ## 🧠 Cómo funciona
 
