@@ -1,0 +1,49 @@
+name: Trend Alert — Telegram
+
+on:
+  schedule:
+    # GitHub mínimo: cada 5 minutos (*/1 no está soportado)
+    - cron: '*/5 * * * *'
+  workflow_dispatch: # permite ejecutar manualmente desde GitHub
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    env:
+      BINANCE_SYMBOL:    BTCUSDT   # cambia el par aquí si quieres
+      BINANCE_TIMEFRAME: 1h        # cambia el timeframe aquí si quieres
+      STATE_FILE:        .trend-state.json
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Restore trend state (from previous run)
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.STATE_FILE }}
+          # restore-keys busca el cache más reciente con ese prefijo
+          key: trend-state-${{ env.BINANCE_SYMBOL }}-${{ env.BINANCE_TIMEFRAME }}-${{ github.run_id }}
+          restore-keys: |
+            trend-state-${{ env.BINANCE_SYMBOL }}-${{ env.BINANCE_TIMEFRAME }}-
+
+      - name: Check trend & send alert if changed
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: node scripts/check-trend.mjs
+
+      - name: Save trend state (for next run)
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.STATE_FILE }}
+          key: trend-state-${{ env.BINANCE_SYMBOL }}-${{ env.BINANCE_TIMEFRAME }}-${{ github.run_id }}
