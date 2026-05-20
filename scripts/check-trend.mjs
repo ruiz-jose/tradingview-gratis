@@ -133,9 +133,9 @@ function trendMeter(candles) {
   return { score, direction, signals };
 }
 
-// ── Binance REST ──────────────────────────────────────────────────────────────
+// ── Market data providers ─────────────────────────────────────────────────────
 
-async function fetchCandles(symbol, interval, limit = 100) {
+async function fetchCandlesFromBinance(symbol, interval, limit) {
   const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Binance error: ${res.status} ${await res.text()}`);
@@ -148,6 +148,49 @@ async function fetchCandles(symbol, interval, limit = 100) {
     close:  parseFloat(k[4]),
     volume: parseFloat(k[5]),
   }));
+}
+
+// Bybit interval map: Binance format → Bybit format
+const BYBIT_INTERVAL = {
+  '1m': 1, '3m': 3, '5m': 5, '15m': 15, '30m': 30,
+  '1h': 60, '2h': 120, '4h': 240, '6h': 360, '12h': 720,
+  '1d': 'D', '1w': 'W', '1M': 'M',
+};
+
+async function fetchCandlesFromBybit(symbol, interval, limit) {
+  const bybitInterval = BYBIT_INTERVAL[interval] ?? interval;
+  const url = `https://api.bybit.com/v5/market/kline?category=spot&symbol=${symbol}&interval=${bybitInterval}&limit=${limit}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Bybit error: ${res.status}`);
+  const json = await res.json();
+  if (json.retCode !== 0) throw new Error(`Bybit error: ${json.retMsg}`);
+  // Bybit returns newest-first — reverse to oldest-first like Binance
+  return json.result.list.reverse().map(k => ({
+    time:   Math.floor(Number(k[0]) / 1000),
+    open:   parseFloat(k[1]),
+    high:   parseFloat(k[2]),
+    low:    parseFloat(k[3]),
+    close:  parseFloat(k[4]),
+    volume: parseFloat(k[5]),
+  }));
+}
+
+async function fetchCandles(symbol, interval, limit = 100) {
+  try {
+    const candles = await fetchCandlesFromBinance(symbol, interval, limit);
+    console.log('[check-trend] Fuente: Binance');
+    return candles;
+  } catch (err) {
+    const msg = String(err?.message ?? err);
+    // 451 = restricted location; fall back to Bybit transparently
+    if (msg.includes('451') || msg.toLowerCase().includes('restricted')) {
+      console.warn('[check-trend] Binance no disponible (451). Usando Bybit...');
+      const candles = await fetchCandlesFromBybit(symbol, interval, limit);
+      console.log('[check-trend] Fuente: Bybit');
+      return candles;
+    }
+    throw err;
+  }
 }
 
 // ── Telegram ──────────────────────────────────────────────────────────────────
