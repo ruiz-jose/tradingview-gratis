@@ -1,8 +1,12 @@
 import type { NextConfig } from "next";
 
+const isProd = process.env.NODE_ENV === "production";
+
 const nextConfig: NextConfig = {
-  output: "export",
-  basePath: "/tradingview-gratis",
+  ...(isProd && {
+    output: "export",
+    basePath: "/tradingview-gratis",
+  }),
   trailingSlash: true,
   images: {
     unoptimized: true,

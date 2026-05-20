@@ -8,9 +8,21 @@ export type IndicatorKey =
   | "ema20"
   | "ema50"
   | "ema200"
+  | "ema9"
+  | "ema21"
   | "rsi"
   | "macd"
-  | "volume";
+  | "volume"
+  | "supertrend"
+  | "bbands"
+  | "vwap"
+  | "stochrsi"
+  | "adx"
+  | "cvd"
+  | "atr"
+  | "chop"
+  | "bos"
+  | "patterns";
 
 export type DrawingTool = "cursor" | "hline" | "measure" | "eraser";
 
@@ -24,29 +36,69 @@ export interface IndicatorConfig {
   ema20: number;
   ema50: number;
   ema200: number;
+  ema9: number;
+  ema21: number;
   rsi: number;
   macdFast: number;
   macdSlow: number;
   macdSignal: number;
+  supertrendAtr: number;
+  supertrendFactor: number;
+  bbandsLen: number;
+  bbandsMultiplier: number;
+  stochRsiLen: number;
+  stochRsiK: number;
+  stochRsiD: number;
+  adxLen: number;
+  atrLen: number;
+  cvdEmaLen: number;
+  chopLen: number;
+  bosLen: number;
 }
 
 export const DEFAULT_CONFIG: IndicatorConfig = {
   ema20: 20,
   ema50: 50,
   ema200: 200,
+  ema9: 9,
+  ema21: 21,
   rsi: 14,
   macdFast: 12,
   macdSlow: 26,
   macdSignal: 9,
+  supertrendAtr: 10,
+  supertrendFactor: 3,
+  bbandsLen: 20,
+  bbandsMultiplier: 2,
+  stochRsiLen: 14,
+  stochRsiK: 3,
+  stochRsiD: 3,
+  adxLen: 14,
+  atrLen: 14,
+  cvdEmaLen: 14,
+  chopLen: 14,
+  bosLen: 5,
 };
 
 export const INDICATOR_COLORS: Record<IndicatorKey, string> = {
   ema20: "#ffb74d",
   ema50: "#2962ff",
   ema200: "#ab47bc",
+  ema9: "#26c6da",
+  ema21: "#66bb6a",
   rsi: "#ab47bc",
   macd: "#2962ff",
   volume: "#787b86",
+  supertrend: "#26a69a",
+  bbands: "#9575cd",
+  vwap: "#ff9800",
+  stochrsi: "#26c6da",
+  adx: "#ef5350",
+  cvd: "#26a69a",
+  atr: "#ffb74d",
+  chop: "#ab47bc",
+  bos: "#26a69a",
+  patterns: "#ffb74d",
 };
 
 export const DEFAULT_WATCHLIST = [
@@ -62,25 +114,29 @@ export const DEFAULT_WATCHLIST = [
   "MATICUSDT",
 ];
 
+function makeDefaultRecord<T>(val: T): Record<IndicatorKey, T> {
+  return {
+    ema20: val, ema50: val, ema200: val, ema9: val, ema21: val,
+    rsi: val, macd: val, volume: val,
+    supertrend: val, bbands: val, vwap: val,
+    stochrsi: val, adx: val, cvd: val, atr: val, chop: val,
+    bos: val, patterns: val,
+  };
+}
+
 interface ChartState {
   symbol: string;
   timeframe: Timeframe;
-  /** Indicator is added to the chart (appears in pill + renders unless hidden) */
   indicators: Record<IndicatorKey, boolean>;
-  /** Indicator is hidden (eye icon off) — kept in pill list, just not rendered */
   hidden: Record<IndicatorKey, boolean>;
-  /** Periods and parameters for each indicator */
   config: IndicatorConfig;
   watchlist: string[];
 
-  // Ephemeral UI state (not persisted)
   tool: DrawingTool;
   priceLines: PriceLine[];
   symbolDialogOpen: boolean;
-  /** Which indicator's settings dialog is open (null = closed) */
   settingsTarget: IndicatorKey | null;
 
-  // Actions
   setSymbol: (s: string) => void;
   setTimeframe: (t: Timeframe) => void;
   toggleIndicator: (key: IndicatorKey) => void;
@@ -102,21 +158,13 @@ export const useChartStore = create<ChartState>()(
       symbol: "BTCUSDT",
       timeframe: "15m" as Timeframe,
       indicators: {
+        ...makeDefaultRecord(false),
         ema20: true,
         ema50: true,
-        ema200: false,
         rsi: true,
-        macd: false,
         volume: true,
       },
-      hidden: {
-        ema20: false,
-        ema50: false,
-        ema200: false,
-        rsi: false,
-        macd: false,
-        volume: false,
-      },
+      hidden: makeDefaultRecord(false),
       config: { ...DEFAULT_CONFIG },
       watchlist: DEFAULT_WATCHLIST,
       tool: "cursor",
@@ -129,7 +177,6 @@ export const useChartStore = create<ChartState>()(
       toggleIndicator: (key) =>
         set((s) => ({
           indicators: { ...s.indicators, [key]: !s.indicators[key] },
-          // When re-adding, ensure not hidden
           hidden: !s.indicators[key]
             ? { ...s.hidden, [key]: false }
             : s.hidden,

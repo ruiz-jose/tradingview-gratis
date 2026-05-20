@@ -10,33 +10,40 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useChartStore, type IndicatorKey } from "@/lib/store/chart-store";
+import { useChartStore, type IndicatorKey, type IndicatorConfig } from "@/lib/store/chart-store";
 
 interface Entry {
   key: IndicatorKey;
-  label: (cfg: {
-    ema20: number;
-    ema50: number;
-    ema200: number;
-    rsi: number;
-    macdFast: number;
-    macdSlow: number;
-    macdSignal: number;
-  }) => string;
+  label: (cfg: IndicatorConfig) => string;
   group: string;
 }
 
 const ENTRIES: Entry[] = [
-  { key: "ema20", group: "Medias móviles", label: (c) => `EMA ${c.ema20}` },
-  { key: "ema50", group: "Medias móviles", label: (c) => `EMA ${c.ema50}` },
+  // Medias móviles
+  { key: "ema9",   group: "Medias móviles", label: (c) => `EMA ${c.ema9}` },
+  { key: "ema21",  group: "Medias móviles", label: (c) => `EMA ${c.ema21}` },
+  { key: "ema20",  group: "Medias móviles", label: (c) => `EMA ${c.ema20}` },
+  { key: "ema50",  group: "Medias móviles", label: (c) => `EMA ${c.ema50}` },
   { key: "ema200", group: "Medias móviles", label: (c) => `EMA ${c.ema200}` },
+  // Tendencia
+  { key: "supertrend", group: "Tendencia", label: (c) => `Supertrend (${c.supertrendAtr}, ${c.supertrendFactor})` },
+  { key: "bbands",     group: "Tendencia", label: (c) => `Bollinger Bands (${c.bbandsLen}, ${c.bbandsMultiplier})` },
+  // Volumen
   { key: "volume", group: "Volumen", label: () => "Volumen" },
-  { key: "rsi", group: "Osciladores", label: (c) => `RSI (${c.rsi})` },
-  {
-    key: "macd",
-    group: "Osciladores",
-    label: (c) => `MACD (${c.macdFast}, ${c.macdSlow}, ${c.macdSignal})`,
-  },
+  { key: "vwap",   group: "Volumen", label: () => "VWAP" },
+  { key: "cvd",    group: "Volumen", label: (c) => `CVD EMA(${c.cvdEmaLen})` },
+  // Osciladores
+  { key: "rsi",      group: "Osciladores", label: (c) => `RSI (${c.rsi})` },
+  { key: "stochrsi", group: "Osciladores", label: (c) => `Stoch RSI (${c.stochRsiLen}, ${c.stochRsiK}, ${c.stochRsiD})` },
+  { key: "macd",     group: "Osciladores", label: (c) => `MACD (${c.macdFast}, ${c.macdSlow}, ${c.macdSignal})` },
+  // Tendencia / ADX
+  { key: "adx",  group: "Tendencia ADX", label: (c) => `ADX (${c.adxLen})` },
+  { key: "chop", group: "Tendencia ADX", label: (c) => `Choppiness (${c.chopLen})` },
+  // Volatilidad
+  { key: "atr", group: "Volatilidad", label: (c) => `ATR (${c.atrLen})` },
+  // Señales
+  { key: "bos",      group: "Señales", label: (c) => `BOS (${c.bosLen})` },
+  { key: "patterns", group: "Señales", label: () => "Patrones de vela" },
 ];
 
 export function IndicatorMenu() {
@@ -62,7 +69,7 @@ export function IndicatorMenu() {
           </span>
         )}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-64 bg-tv-panel">
+      <DropdownMenuContent align="start" className="w-72 bg-tv-panel">
         {Object.entries(groups).map(([group, items], idx) => (
           <DropdownMenuGroup key={group}>
             {idx > 0 && <DropdownMenuSeparator />}
