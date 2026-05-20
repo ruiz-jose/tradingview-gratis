@@ -14,6 +14,9 @@
 
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 
+// Carga .env automáticamente en local; en CI las vars ya vienen del entorno
+try { process.loadEnvFile('.env'); } catch { /* archivo no existe — ok en CI */ }
+
 const SYMBOL     = process.env.BINANCE_SYMBOL    || 'BTCUSDT';
 const TIMEFRAME  = process.env.BINANCE_TIMEFRAME || '1h';
 const TOKEN      = process.env.TELEGRAM_BOT_TOKEN;
