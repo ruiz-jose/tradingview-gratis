@@ -35,6 +35,7 @@ const TITLES: Record<IndicatorKey, string> = {
   chop: "Choppiness Index",
   bos: "Break of Structure",
   patterns: "Patrones de vela",
+  trendmeter: "Trend Meter",
 };
 
 export function IndicatorSettingsDialog() {

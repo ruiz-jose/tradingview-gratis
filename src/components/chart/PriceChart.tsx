@@ -29,6 +29,8 @@ import {
   choppiness,
   bos,
   candlePatterns,
+  trendMeter,
+  type TrendMeterResult,
 } from "@/lib/indicators";
 import type { Candle, Timeframe } from "@/lib/binance/types";
 import {
@@ -180,6 +182,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
   const [hover, setHover]       = useState<HoverInfo | null>(null);
   const [lastPrice, setLastPrice] = useState<{ value: number; pct: number } | null>(null);
   const [lastValues, setLastValues] = useState<LastValues>({});
+  const [trendResult, setTrendResult] = useState<TrendMeterResult | null>(null);
   const [paneOffsets, setPaneOffsets] = useState<PaneOffset[]>([]);
   const [measure, setMeasure]   = useState<MeasureState>(INITIAL_MEASURE);
   const [renderTick, setRenderTick] = useState(0);
@@ -556,6 +559,10 @@ export function PriceChart({ symbol, timeframe }: Props) {
   useEffect(() => { updateATR(); }, [config.atrLen]);
   useEffect(() => { updateChop(); }, [config.chopLen]);
   useEffect(() => { updateSignalMarkers(); }, [indicators.bos, indicators.patterns, config.bosLen]);
+  useEffect(() => {
+    updateTrendMeter();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [indicators.trendmeter]);
 
   // ── Price lines (hline tool) ──────────────────────────────────────────────
   useEffect(() => {
@@ -741,6 +748,15 @@ export function PriceChart({ symbol, timeframe }: Props) {
     setLastValues((prev) => ({ ...prev, chop: data.at(-1)?.value }));
   }
 
+  function updateTrendMeter() {
+    const c = candlesRef.current;
+    if (c.length === 0 || !indicatorsRef.current.trendmeter) {
+      setTrendResult(null);
+      return;
+    }
+    setTrendResult(trendMeter(c));
+  }
+
   function updateSignalMarkers() {
     const c = candlesRef.current;
     if (c.length === 0 || !markersRef.current) return;
@@ -808,6 +824,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
         updateCVD();
         updateATR();
         updateChop();
+        updateTrendMeter();
         updateSignalMarkers();
 
         chartRef.current?.timeScale().fitContent();
@@ -849,6 +866,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
             updateCVD();
             updateATR();
             updateChop();
+            updateTrendMeter();
             updateSignalMarkers();
 
             const prev = arr[arr.length - 2] ?? lastCandle;
@@ -1043,6 +1061,72 @@ export function PriceChart({ symbol, timeframe }: Props) {
             name={`CHOP ${config.chopLen}`}
             value={lastValues.chop !== undefined ? lastValues.chop.toFixed(1) : undefined}
             color={INDICATOR_COLORS.chop} hidden={hidden.chop} onToggleHide={() => toggleHidden("chop")} onSettings={() => setSettingsTarget("chop")} onRemove={() => removeIndicator("chop")} />
+        </div>
+      )}
+
+      {/* ── Trend Meter overlay ── */}
+      {indicators.trendmeter && trendResult && paneOffsets[0] && (
+        <div
+          style={{ top: (paneOffsets[0]?.top ?? 0) + 12, right: 60 }}
+          className="pointer-events-none absolute z-10"
+        >
+          <div className={`flex flex-col gap-1 rounded border px-3 py-2 text-xs backdrop-blur-sm ${
+            trendResult.direction === "bull"
+              ? "border-[#26a69a]/40 bg-[#26a69a]/10"
+              : trendResult.direction === "bear"
+              ? "border-[#ef5350]/40 bg-[#ef5350]/10"
+              : "border-[#787b86]/40 bg-[#787b86]/10"
+          }`}>
+            {/* Título + veredicto */}
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] uppercase tracking-wider text-tv-text-muted">Tendencia</span>
+              <span className={`font-bold tracking-wide ${
+                trendResult.direction === "bull" ? "text-[#26a69a]"
+                : trendResult.direction === "bear" ? "text-[#ef5350]"
+                : "text-[#ffb74d]"
+              }`}>
+                {trendResult.direction === "bull" ? "▲ ALCISTA"
+                  : trendResult.direction === "bear" ? "▼ BAJISTA"
+                  : "◆ NEUTRAL"}
+              </span>
+            </div>
+            {/* Barra de fuerza */}
+            <div className="flex items-center gap-1">
+              {[-2, -1, 0, 1, 2].map((i) => {
+                const filled =
+                  trendResult.direction === "bull"
+                    ? trendResult.score >= i + 3
+                    : trendResult.direction === "bear"
+                    ? trendResult.score <= i - 3
+                    : false;
+                const color =
+                  trendResult.direction === "bull" ? "#26a69a"
+                  : trendResult.direction === "bear" ? "#ef5350"
+                  : "#787b86";
+                return (
+                  <div
+                    key={i}
+                    style={{ backgroundColor: filled ? color : `${color}33`, width: 14, height: 6, borderRadius: 2 }}
+                  />
+                );
+              })}
+            </div>
+            {/* Señales individuales */}
+            <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px]">
+              {[
+                { label: "Precio/EMA20", v: trendResult.signals.vsEma20 },
+                { label: "Precio/EMA50", v: trendResult.signals.vsEma50 },
+                { label: "EMA9/EMA21",   v: trendResult.signals.emaFastCross },
+                { label: "Supertrend",   v: trendResult.signals.supertrend },
+                { label: "MACD Hist",    v: trendResult.signals.macdHist },
+              ].map(({ label, v }) => (
+                <div key={label} className="flex items-center gap-1">
+                  <span style={{ color: v === 1 ? "#26a69a" : "#ef5350" }}>{v === 1 ? "▲" : "▼"}</span>
+                  <span className="text-tv-text-muted">{label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
     </div>

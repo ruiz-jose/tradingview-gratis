@@ -519,3 +519,70 @@ export function candlePatterns(candles: Candle[]): SignalPoint[] {
   }
   return out;
 }
+
+// ─── Trend Meter ──────────────────────────────────────────────────────────────
+// Combina 5 señales para dar un veredicto alcista / bajista / neutral.
+// Cada señal devuelve +1 (alcista) o -1 (bajista).
+//  1. Precio vs EMA20
+//  2. Precio vs EMA50
+//  3. EMA9 vs EMA21 (cruce rápido)
+//  4. Supertrend dirección
+//  5. MACD histograma signo
+
+export interface TrendSignals {
+  vsEma20: 1 | -1;
+  vsEma50: 1 | -1;
+  emaFastCross: 1 | -1;
+  supertrend: 1 | -1;
+  macdHist: 1 | -1;
+}
+
+export interface TrendMeterResult {
+  score: number;           // -5 a +5
+  direction: "bull" | "bear" | "neutral";
+  signals: TrendSignals;
+}
+
+export function trendMeter(candles: Candle[]): TrendMeterResult | null {
+  if (candles.length < 50) return null;
+
+  const close = candles[candles.length - 1].close;
+
+  // EMA20 y EMA50
+  const ema20Val = ema(candles, 20).at(-1)?.value;
+  const ema50Val = ema(candles, 50).at(-1)?.value;
+  const ema9Val  = ema(candles, 9).at(-1)?.value;
+  const ema21Val = ema(candles, 21).at(-1)?.value;
+
+  if (!ema20Val || !ema50Val || !ema9Val || !ema21Val) return null;
+
+  // Supertrend
+  const stData = supertrend(candles, 10, 3);
+  const lastST = stData.at(-1);
+
+  // MACD histograma
+  const macdData = macd(candles, 12, 26, 9);
+  const lastMACD = macdData.at(-1);
+
+  if (!lastST || !lastMACD) return null;
+
+  const signals: TrendSignals = {
+    vsEma20:     close > ema20Val ? 1 : -1,
+    vsEma50:     close > ema50Val ? 1 : -1,
+    emaFastCross: ema9Val > ema21Val ? 1 : -1,
+    supertrend:  lastST.direction,
+    macdHist:    lastMACD.histogram >= 0 ? 1 : -1,
+  };
+
+  const score =
+    signals.vsEma20 +
+    signals.vsEma50 +
+    signals.emaFastCross +
+    signals.supertrend +
+    signals.macdHist;
+
+  const direction: TrendMeterResult["direction"] =
+    score >= 3 ? "bull" : score <= -3 ? "bear" : "neutral";
+
+  return { score, direction, signals };
+}

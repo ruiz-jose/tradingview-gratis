@@ -22,7 +22,8 @@ export type IndicatorKey =
   | "atr"
   | "chop"
   | "bos"
-  | "patterns";
+  | "patterns"
+  | "trendmeter";
 
 export type DrawingTool = "cursor" | "hline" | "measure" | "eraser";
 
@@ -99,6 +100,7 @@ export const INDICATOR_COLORS: Record<IndicatorKey, string> = {
   chop: "#ab47bc",
   bos: "#26a69a",
   patterns: "#ffb74d",
+  trendmeter: "#2962ff",
 };
 
 export const DEFAULT_WATCHLIST = [
@@ -120,7 +122,7 @@ function makeDefaultRecord<T>(val: T): Record<IndicatorKey, T> {
     rsi: val, macd: val, volume: val,
     supertrend: val, bbands: val, vwap: val,
     stochrsi: val, adx: val, cvd: val, atr: val, chop: val,
-    bos: val, patterns: val,
+    bos: val, patterns: val, trendmeter: val,
   };
 }
 

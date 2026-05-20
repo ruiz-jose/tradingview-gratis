@@ -42,8 +42,9 @@ const ENTRIES: Entry[] = [
   // Volatilidad
   { key: "atr", group: "Volatilidad", label: (c) => `ATR (${c.atrLen})` },
   // Señales
-  { key: "bos",      group: "Señales", label: (c) => `BOS (${c.bosLen})` },
-  { key: "patterns", group: "Señales", label: () => "Patrones de vela" },
+  { key: "bos",        group: "Señales", label: (c) => `BOS (${c.bosLen})` },
+  { key: "patterns",   group: "Señales", label: () => "Patrones de vela" },
+  { key: "trendmeter", group: "Señales", label: () => "Trend Meter (Alcista/Bajista/Neutral)" },
 ];
 
 export function IndicatorMenu() {
