@@ -24,21 +24,19 @@ export function AlertSettingsButton() {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          className={cn(
-            "flex h-8 items-center gap-1.5 rounded px-2 text-xs transition-colors hover:bg-tv-panel-hover hover:text-tv-text",
-            alertConfig.enabled ? "text-tv-green" : "text-tv-text-muted",
-          )}
-          aria-label="Configurar alertas de tendencia"
-        >
-          {alertConfig.enabled ? (
-            <Bell className="h-3.5 w-3.5" />
-          ) : (
-            <BellOff className="h-3.5 w-3.5" />
-          )}
-          <span className="hidden sm:inline">Alertas</span>
-        </button>
+      <DropdownMenuTrigger
+        className={cn(
+          "flex h-8 items-center gap-1.5 rounded px-2 text-xs transition-colors hover:bg-tv-panel-hover hover:text-tv-text",
+          alertConfig.enabled ? "text-tv-green" : "text-tv-text-muted",
+        )}
+        aria-label="Configurar alertas de tendencia"
+      >
+        {alertConfig.enabled ? (
+          <Bell className="h-3.5 w-3.5" />
+        ) : (
+          <BellOff className="h-3.5 w-3.5" />
+        )}
+        <span className="hidden sm:inline">Alertas</span>
       </DropdownMenuTrigger>
 
       <DropdownMenuContent
