@@ -138,6 +138,17 @@ function trendMeter(candles) {
 
 // ── Market data providers ─────────────────────────────────────────────────────
 
+async function withRetry(fn, retries = 2, baseDelay = 1500) {
+  let lastError;
+  for (let i = 0; i < retries; i++) {
+    try { return await fn(); } catch (err) {
+      lastError = err;
+      if (i < retries - 1) await new Promise(r => setTimeout(r, baseDelay * (i + 1)));
+    }
+  }
+  throw lastError;
+}
+
 async function fetchCandlesFromBinance(symbol, interval, limit) {
   const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
   const res = await fetch(url);
@@ -178,22 +189,50 @@ async function fetchCandlesFromBybit(symbol, interval, limit) {
   }));
 }
 
+// OKX interval map: Binance format → OKX bar format
+const OKX_BAR = {
+  '1m': '1m', '3m': '3m', '5m': '5m', '15m': '15m', '30m': '30m',
+  '1h': '1H', '2h': '2H', '4h': '4H', '6h': '6H', '12h': '12H',
+  '1d': '1D', '1w': '1W', '1M': '1M',
+};
+
+async function fetchCandlesFromOkx(symbol, interval, limit) {
+  // Convert BTCUSDT → BTC-USDT
+  const instId = symbol.replace(/^([A-Z0-9]+?)(USDT|USDC|BTC|ETH)$/, '$1-$2');
+  const bar = OKX_BAR[interval] ?? interval;
+  const url = `https://www.okx.com/api/v5/market/candles?instId=${instId}&bar=${bar}&limit=${limit}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`OKX error: ${res.status}`);
+  const json = await res.json();
+  if (json.code !== '0') throw new Error(`OKX error: ${json.msg}`);
+  // OKX returns newest-first — reverse to oldest-first
+  return json.data.reverse().map(k => ({
+    time:   Math.floor(Number(k[0]) / 1000),
+    open:   parseFloat(k[1]),
+    high:   parseFloat(k[2]),
+    low:    parseFloat(k[3]),
+    close:  parseFloat(k[4]),
+    volume: parseFloat(k[5]),
+  }));
+}
+
+// Returns candles from the first responsive provider, or null if all fail.
 async function fetchCandles(symbol, interval, limit = 100) {
-  try {
-    const candles = await fetchCandlesFromBinance(symbol, interval, limit);
-    console.log('[check-trend] Fuente: Binance');
-    return candles;
-  } catch (err) {
-    const msg = String(err?.message ?? err);
-    // 451 = restricted location; fall back to Bybit transparently
-    if (msg.includes('451') || msg.toLowerCase().includes('restricted')) {
-      console.warn('[check-trend] Binance no disponible (451). Usando Bybit...');
-      const candles = await fetchCandlesFromBybit(symbol, interval, limit);
-      console.log('[check-trend] Fuente: Bybit');
+  const providers = [
+    { name: 'Binance', fn: () => fetchCandlesFromBinance(symbol, interval, limit) },
+    { name: 'Bybit',   fn: () => fetchCandlesFromBybit(symbol, interval, limit) },
+    { name: 'OKX',     fn: () => fetchCandlesFromOkx(symbol, interval, limit) },
+  ];
+  for (const { name, fn } of providers) {
+    try {
+      const candles = await withRetry(fn, 2, 1500);
+      console.log(`[check-trend] Fuente: ${name}`);
       return candles;
+    } catch (err) {
+      console.warn(`[check-trend] ${name} no disponible: ${err.message}`);
     }
-    throw err;
   }
+  return null;
 }
 
 // ── Telegram ──────────────────────────────────────────────────────────────────
@@ -222,7 +261,13 @@ async function main() {
   console.log(`[check-trend] ${SYMBOL} ${TIMEFRAME} | prev: ${prevDirection}`);
 
   const candles = await fetchCandles(SYMBOL, TIMEFRAME, 100);
-  const result  = trendMeter(candles);
+
+  if (!candles) {
+    console.warn('[check-trend] Todos los proveedores de datos fallaron (451/403). Se conserva el estado anterior.');
+    process.exit(0);
+  }
+
+  const result = trendMeter(candles);
 
   if (!result) {
     console.log('[check-trend] Not enough data — skipping');
@@ -265,4 +310,4 @@ async function main() {
   console.log(`[check-trend] ✅ Alert sent → ${direction}`);
 }
 
-main().catch(err => { console.error(err); process.exit(1); });
+main().catch(err => { console.error('[check-trend] Error inesperado:', err.message ?? err); process.exit(1); });
