@@ -33,6 +33,20 @@ export interface PriceLine {
   price: number;
 }
 
+export interface AlertConfig {
+  enabled: boolean;
+  sound: boolean;
+  browser: boolean;
+  minScore: number; // 3 | 4 | 5
+}
+
+export const DEFAULT_ALERT_CONFIG: AlertConfig = {
+  enabled: true,
+  sound: true,
+  browser: false,
+  minScore: 3,
+};
+
 export interface IndicatorConfig {
   ema20: number;
   ema50: number;
@@ -134,12 +148,15 @@ interface ChartState {
   config: IndicatorConfig;
   watchlist: string[];
 
+  alertConfig: AlertConfig;
+
   tool: DrawingTool;
   priceLines: PriceLine[];
   symbolDialogOpen: boolean;
   settingsTarget: IndicatorKey | null;
 
   setSymbol: (s: string) => void;
+  setAlertConfig: (patch: Partial<AlertConfig>) => void;
   setTimeframe: (t: Timeframe) => void;
   toggleIndicator: (key: IndicatorKey) => void;
   removeIndicator: (key: IndicatorKey) => void;
@@ -169,12 +186,15 @@ export const useChartStore = create<ChartState>()(
       hidden: makeDefaultRecord(false),
       config: { ...DEFAULT_CONFIG },
       watchlist: DEFAULT_WATCHLIST,
+      alertConfig: { ...DEFAULT_ALERT_CONFIG },
       tool: "cursor",
       priceLines: [],
       symbolDialogOpen: false,
       settingsTarget: null,
 
       setSymbol: (symbol) => set({ symbol }),
+      setAlertConfig: (patch) =>
+        set((s) => ({ alertConfig: { ...s.alertConfig, ...patch } })),
       setTimeframe: (timeframe) => set({ timeframe }),
       toggleIndicator: (key) =>
         set((s) => ({
@@ -235,6 +255,7 @@ export const useChartStore = create<ChartState>()(
         hidden: s.hidden,
         config: s.config,
         watchlist: s.watchlist,
+        alertConfig: s.alertConfig,
       }),
     },
   ),

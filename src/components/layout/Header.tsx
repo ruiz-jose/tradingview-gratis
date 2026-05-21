@@ -4,6 +4,7 @@ import { Code2, PanelRight, Zap } from "lucide-react";
 import { SymbolSelector } from "@/components/chart/SymbolSelector";
 import { TimeframeSelector } from "@/components/chart/TimeframeSelector";
 import { IndicatorMenu } from "@/components/chart/IndicatorMenu";
+import { AlertSettingsButton } from "@/components/chart/AlertSettingsButton";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 
@@ -33,6 +34,8 @@ export function Header({ watchlistOpen, onToggleWatchlist }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-1">
+        <AlertSettingsButton />
+        <Separator orientation="vertical" className="h-6 bg-tv-border" />
         <a
           href="https://github.com"
           target="_blank"

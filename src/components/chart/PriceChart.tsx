@@ -42,6 +42,8 @@ import { formatPrice, formatVolume } from "@/lib/format";
 import { IndicatorPill } from "./IndicatorPill";
 import { MeasureOverlay } from "./MeasureOverlay";
 import { useTelegramAlerts } from "@/hooks/useTelegramAlerts";
+import { useTrendAlerts } from "@/hooks/useTrendAlerts";
+import { TrendAlertToast } from "./TrendAlertToast";
 
 // Ordered list of subpane indicators (determines pane slot assignment)
 const SUBPANE_ORDER: IndicatorKey[] = ["rsi", "macd", "stochrsi", "adx", "cvd", "atr", "chop"];
@@ -166,6 +168,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
   const indicators     = useChartStore((s) => s.indicators);
   const hidden         = useChartStore((s) => s.hidden);
   const config         = useChartStore((s) => s.config);
+  const alertConfig    = useChartStore((s) => s.alertConfig);
   const tool           = useChartStore((s) => s.tool);
   const priceLines     = useChartStore((s) => s.priceLines);
   const addPriceLine   = useChartStore((s) => s.addPriceLine);
@@ -190,6 +193,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
   const measureRef = useRef(measure); measureRef.current = measure;
 
   useTelegramAlerts(trendResult, symbol, timeframe);
+  const { activeAlerts, dismiss } = useTrendAlerts(trendResult, symbol, timeframe, alertConfig);
 
   function recomputePaneOffsets() {
     if (!chartRef.current) return;
@@ -1066,6 +1070,9 @@ export function PriceChart({ symbol, timeframe }: Props) {
             color={INDICATOR_COLORS.chop} hidden={hidden.chop} onToggleHide={() => toggleHidden("chop")} onSettings={() => setSettingsTarget("chop")} onRemove={() => removeIndicator("chop")} />
         </div>
       )}
+
+      {/* ── Trend Alert Toast ── */}
+      <TrendAlertToast alerts={activeAlerts} onDismiss={dismiss} />
 
       {/* ── Trend Meter overlay ── */}
       {indicators.trendmeter && trendResult && paneOffsets[0] && (

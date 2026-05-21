@@ -125,3 +125,8 @@
     font-variant-numeric: tabular-nums;
   }
 }
+
+@keyframes tv-alert-shrink {
+  from { width: 100%; }
+  to   { width: 0%; }
+}
