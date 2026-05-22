@@ -39,7 +39,12 @@ export function useTelegramAlerts(
 
     prevDirectionRef.current = direction;
 
-    if (!cfg.enabled || !cfg.telegram || !directionChanged || !isActionable || !isStrong) return;
+    // Skip if alerts master switch or Telegram toggle is off
+    if (!cfg.enabled || !cfg.telegram) return;
+    // Skip if direction did not change or is not actionable
+    if (!directionChanged || !isActionable) return;
+    // Skip if trend is not strong enough
+    if (!isStrong) return;
 
     const now = Date.now();
     if (now - lastAlertRef.current < COOLDOWN_MS) return;
