@@ -75,6 +75,13 @@ export function AlertSettingsButton() {
             onChange={handleBrowserToggle}
           />
 
+          {/* Telegram */}
+          <ToggleRow
+            label="Telegram"
+            checked={alertConfig.telegram}
+            onChange={(v) => setAlertConfig({ telegram: v })}
+          />
+
           {/* Minimum score */}
           <div className="flex items-center justify-between px-1">
             <span className="text-xs text-tv-text-muted">Mín. señales</span>

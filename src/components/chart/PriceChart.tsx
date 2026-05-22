@@ -192,7 +192,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
   const [renderTick, setRenderTick] = useState(0);
   const measureRef = useRef(measure); measureRef.current = measure;
 
-  useTelegramAlerts(trendResult, symbol, timeframe);
+  useTelegramAlerts(trendResult, symbol, timeframe, alertConfig);
   const { activeAlerts, dismiss } = useTrendAlerts(trendResult, symbol, timeframe, alertConfig);
 
   function recomputePaneOffsets() {
