@@ -37,6 +37,7 @@ export interface AlertConfig {
   enabled: boolean;
   sound: boolean;
   browser: boolean;
+  telegram: boolean;
   minScore: number; // 3 | 4 | 5
 }
 
@@ -44,6 +45,7 @@ export const DEFAULT_ALERT_CONFIG: AlertConfig = {
   enabled: true,
   sound: true,
   browser: false,
+  telegram: true,
   minScore: 3,
 };
 

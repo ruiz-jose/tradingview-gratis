@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import type { TrendMeterResult } from "@/lib/indicators";
 import type { Timeframe } from "@/lib/binance/types";
+import type { AlertConfig } from "@/lib/store/chart-store";
 
 const DIRECTION_LABELS: Record<NonNullable<TrendMeterResult["direction"]>, string> = {
   bull: "🟢 ALCISTA",
@@ -17,32 +18,36 @@ export function useTelegramAlerts(
   trendResult: TrendMeterResult | null,
   symbol: string,
   timeframe: Timeframe,
+  config: AlertConfig,
 ) {
   const prevDirectionRef = useRef<TrendMeterResult["direction"] | null>(null);
   const lastAlertRef = useRef<number>(0);
+  const configRef = useRef(config);
+  configRef.current = config;
 
   useEffect(() => {
     if (!trendResult) return;
 
     const { direction, score } = trendResult;
+    const cfg = configRef.current;
     const prev = prevDirectionRef.current;
 
     // Solo alerta si cambia de dirección (no en neutral→neutral, etc.)
     const directionChanged = prev !== null && direction !== prev;
     const isActionable = direction === "bull" || direction === "bear";
-
-    if (!directionChanged || !isActionable) {
-      prevDirectionRef.current = direction;
-      return;
-    }
-
-    const now = Date.now();
-    if (now - lastAlertRef.current < COOLDOWN_MS) {
-      prevDirectionRef.current = direction;
-      return;
-    }
+    const isStrong = Math.abs(score) >= cfg.minScore;
 
     prevDirectionRef.current = direction;
+
+    // Skip if alerts master switch or Telegram toggle is off
+    if (!cfg.enabled || !cfg.telegram) return;
+    // Skip if direction did not change or is not actionable
+    if (!directionChanged || !isActionable) return;
+    // Skip if trend is not strong enough
+    if (!isStrong) return;
+
+    const now = Date.now();
+    if (now - lastAlertRef.current < COOLDOWN_MS) return;
     lastAlertRef.current = now;
 
     const label = DIRECTION_LABELS[direction];
