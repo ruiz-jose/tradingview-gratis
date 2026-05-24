@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "check-trend": "node scripts/check-trend.mjs"
+    "check-trend": "node scripts/check-trend.mjs",
+    "backtest": "node scripts/backtest.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",

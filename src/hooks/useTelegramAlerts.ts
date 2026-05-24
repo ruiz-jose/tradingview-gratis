@@ -11,8 +11,23 @@ const DIRECTION_LABELS: Record<NonNullable<TrendMeterResult["direction"]>, strin
   neutral: "⚪ NEUTRAL",
 };
 
-// Mínimo de minutos entre alertas para el mismo símbolo (evita spam)
-const COOLDOWN_MS = 5 * 60 * 1000;
+const COOLDOWN_BY_TF: Partial<Record<string, number>> = {
+  "1m":  4  * 60_000,
+  "3m":  6  * 60_000,
+  "5m":  15 * 60_000,
+  "15m": 45 * 60_000,
+  "30m": 90 * 60_000,
+  "1h":  4  * 60 * 60_000,
+  "2h":  6  * 60 * 60_000,
+  "4h":  12 * 60 * 60_000,
+  "6h":  18 * 60 * 60_000,
+  "8h":  24 * 60 * 60_000,
+  "12h": 24 * 60 * 60_000,
+  "1d":  48 * 60 * 60_000,
+};
+function getCooldown(tf: string): number {
+  return COOLDOWN_BY_TF[tf] ?? 5 * 60_000;
+}
 
 export function useTelegramAlerts(
   trendResult: TrendMeterResult | null,
@@ -47,7 +62,7 @@ export function useTelegramAlerts(
     if (!isStrong) return;
 
     const now = Date.now();
-    if (now - lastAlertRef.current < COOLDOWN_MS) return;
+    if (now - lastAlertRef.current < getCooldown(timeframe)) return;
     lastAlertRef.current = now;
 
     const label = DIRECTION_LABELS[direction];

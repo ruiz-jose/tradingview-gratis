@@ -1,12 +1,15 @@
 #!/usr/bin/env node
 /**
  * check-trend.mjs
- * Fetches candles from Binance, computes trendMeter,
- * and sends a Telegram alert when direction changes.
+ * Multi-timeframe trend checker: entry signal (15m) confirmed by context (1h).
+ * Sends a Telegram alert only when both timeframes agree AND score ≥ MIN_SCORE.
  *
  * Env vars:
  *   BINANCE_SYMBOL          (default: BTCUSDT)
- *   BINANCE_TIMEFRAME       (default: 1h)
+ *   ENTRY_TIMEFRAME         (default: 15m)  — timeframe que genera la señal
+ *   CONTEXT_TIMEFRAME       (default: 1h)   — timeframe de confirmación
+ *   MIN_SCORE               (default: 4)    — mínimo de señales alineadas (3-5)
+ *   COOLDOWN_MINUTES        (default: 60)   — minutos mínimos entre alertas
  *   TELEGRAM_BOT_TOKEN      required for alerts
  *   TELEGRAM_CHAT_ID        required for alerts
  *   STATE_FILE              (default: .trend-state.json)
@@ -14,14 +17,17 @@
 
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 
-// Carga .env automáticamente en local; en CI las vars ya vienen del entorno
-try { process.loadEnvFile('.env'); } catch { /* archivo no existe — ok en CI */ }
+try { process.loadEnvFile('.env'); } catch { /* ok en CI */ }
 
-const SYMBOL     = process.env.BINANCE_SYMBOL    || 'BTCUSDT';
-const TIMEFRAME  = process.env.BINANCE_TIMEFRAME || '1h';
-const TOKEN      = process.env.TELEGRAM_BOT_TOKEN;
-const CHAT_ID    = process.env.TELEGRAM_CHAT_ID;
-const STATE_FILE = process.env.STATE_FILE || '.trend-state.json';
+const SYMBOL           = process.env.BINANCE_SYMBOL    || 'BTCUSDT';
+// BINANCE_TIMEFRAME se mantiene como alias para compatibilidad
+const ENTRY_TF         = process.env.ENTRY_TIMEFRAME   || process.env.BINANCE_TIMEFRAME || '15m';
+const CONTEXT_TF       = process.env.CONTEXT_TIMEFRAME || '1h';
+const MIN_SCORE        = parseInt(process.env.MIN_SCORE        || '4', 10);
+const COOLDOWN_MINUTES = parseInt(process.env.COOLDOWN_MINUTES || '60', 10);
+const TOKEN            = process.env.TELEGRAM_BOT_TOKEN;
+const CHAT_ID          = process.env.TELEGRAM_CHAT_ID;
+const STATE_FILE       = process.env.STATE_FILE || '.trend-state.json';
 
 // ── Indicators (exact port from src/lib/indicators/index.ts) ─────────────────
 
@@ -164,7 +170,6 @@ async function fetchCandlesFromBinance(symbol, interval, limit) {
   }));
 }
 
-// Bybit interval map: Binance format → Bybit format
 const BYBIT_INTERVAL = {
   '1m': 1, '3m': 3, '5m': 5, '15m': 15, '30m': 30,
   '1h': 60, '2h': 120, '4h': 240, '6h': 360, '12h': 720,
@@ -178,7 +183,6 @@ async function fetchCandlesFromBybit(symbol, interval, limit) {
   if (!res.ok) throw new Error(`Bybit error: ${res.status}`);
   const json = await res.json();
   if (json.retCode !== 0) throw new Error(`Bybit error: ${json.retMsg}`);
-  // Bybit returns newest-first — reverse to oldest-first like Binance
   return json.result.list.reverse().map(k => ({
     time:   Math.floor(Number(k[0]) / 1000),
     open:   parseFloat(k[1]),
@@ -189,7 +193,6 @@ async function fetchCandlesFromBybit(symbol, interval, limit) {
   }));
 }
 
-// OKX interval map: Binance format → OKX bar format
 const OKX_BAR = {
   '1m': '1m', '3m': '3m', '5m': '5m', '15m': '15m', '30m': '30m',
   '1h': '1H', '2h': '2H', '4h': '4H', '6h': '6H', '12h': '12H',
@@ -197,7 +200,6 @@ const OKX_BAR = {
 };
 
 async function fetchCandlesFromOkx(symbol, interval, limit) {
-  // Convert BTCUSDT → BTC-USDT
   const instId = symbol.replace(/^([A-Z0-9]+?)(USDT|USDC|BTC|ETH)$/, '$1-$2');
   const bar = OKX_BAR[interval] ?? interval;
   const url = `https://www.okx.com/api/v5/market/candles?instId=${instId}&bar=${bar}&limit=${limit}`;
@@ -205,7 +207,6 @@ async function fetchCandlesFromOkx(symbol, interval, limit) {
   if (!res.ok) throw new Error(`OKX error: ${res.status}`);
   const json = await res.json();
   if (json.code !== '0') throw new Error(`OKX error: ${json.msg}`);
-  // OKX returns newest-first — reverse to oldest-first
   return json.data.reverse().map(k => ({
     time:   Math.floor(Number(k[0]) / 1000),
     open:   parseFloat(k[1]),
@@ -216,7 +217,6 @@ async function fetchCandlesFromOkx(symbol, interval, limit) {
   }));
 }
 
-// Returns candles from the first responsive provider, or null if all fail.
 async function fetchCandles(symbol, interval, limit = 100) {
   const providers = [
     { name: 'Binance', fn: () => fetchCandlesFromBinance(symbol, interval, limit) },
@@ -226,10 +226,10 @@ async function fetchCandles(symbol, interval, limit = 100) {
   for (const { name, fn } of providers) {
     try {
       const candles = await withRetry(fn, 2, 1500);
-      console.log(`[check-trend] Fuente: ${name}`);
+      console.log(`[check-trend] Fuente ${interval}: ${name}`);
       return candles;
     } catch (err) {
-      console.warn(`[check-trend] ${name} no disponible: ${err.message}`);
+      console.warn(`[check-trend] ${name} (${interval}) no disponible: ${err.message}`);
     }
   }
   return null;
@@ -246,51 +246,116 @@ async function sendTelegram(token, chatId, text) {
   if (!res.ok) throw new Error(`Telegram error: ${await res.text()}`);
 }
 
+// ── State ─────────────────────────────────────────────────────────────────────
+
+function loadState() {
+  if (!existsSync(STATE_FILE)) return { direction: 'neutral', lastAlertAt: null };
+  try {
+    const s = JSON.parse(readFileSync(STATE_FILE, 'utf8'));
+    return {
+      direction:  s.direction  ?? 'neutral',
+      lastAlertAt: s.lastAlertAt ?? null,
+    };
+  } catch {
+    return { direction: 'neutral', lastAlertAt: null };
+  }
+}
+
+function saveState(direction, lastAlertAt) {
+  writeFileSync(STATE_FILE, JSON.stringify({
+    direction,
+    lastAlertAt,
+    symbol:           SYMBOL,
+    entryTimeframe:   ENTRY_TF,
+    contextTimeframe: CONTEXT_TF,
+    updatedAt:        new Date().toISOString(),
+  }), 'utf8');
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 const LABELS = { bull: '🟢 ALCISTA', bear: '🔴 BAJISTA', neutral: '⚪ NEUTRAL' };
 
 async function main() {
-  let prevDirection = 'neutral';
-  if (existsSync(STATE_FILE)) {
-    try {
-      prevDirection = JSON.parse(readFileSync(STATE_FILE, 'utf8')).direction ?? 'neutral';
-    } catch { /* state file corrupted — start fresh */ }
+  const { direction: prevDirection, lastAlertAt } = loadState();
+
+  console.log(`[check-trend] ${SYMBOL} | entry: ${ENTRY_TF} | context: ${CONTEXT_TF} | minScore: ${MIN_SCORE} | prev: ${prevDirection}`);
+
+  // Fetch both timeframes in parallel
+  const [entryCandlesRaw, contextCandlesRaw] = await Promise.all([
+    fetchCandles(SYMBOL, ENTRY_TF,   100),
+    fetchCandles(SYMBOL, CONTEXT_TF, 100),
+  ]);
+
+  if (!entryCandlesRaw) {
+    console.warn('[check-trend] Todos los proveedores fallaron para el timeframe de entrada. Se conserva el estado.');
+    process.exit(0);
   }
-
-  console.log(`[check-trend] ${SYMBOL} ${TIMEFRAME} | prev: ${prevDirection}`);
-
-  const candles = await fetchCandles(SYMBOL, TIMEFRAME, 100);
-
-  if (!candles) {
-    console.warn('[check-trend] Todos los proveedores de datos fallaron (451/403). Se conserva el estado anterior.');
+  if (!contextCandlesRaw) {
+    console.warn('[check-trend] Todos los proveedores fallaron para el timeframe de contexto. Se conserva el estado.');
     process.exit(0);
   }
 
-  const result = trendMeter(candles);
+  const entryResult  = trendMeter(entryCandlesRaw);
+  const contextResult = trendMeter(contextCandlesRaw);
 
-  if (!result) {
-    console.log('[check-trend] Not enough data — skipping');
+  if (!entryResult) {
+    console.log('[check-trend] Datos insuficientes en entry TF — saltando');
+    return;
+  }
+  if (!contextResult) {
+    console.log('[check-trend] Datos insuficientes en context TF — saltando');
     return;
   }
 
-  const { direction, score, signals } = result;
-  console.log(`[check-trend] direction: ${direction} (score ${score > 0 ? '+' : ''}${score})`);
+  const { direction, score, signals } = entryResult;
+  const { direction: contextDirection, score: contextScore } = contextResult;
 
-  writeFileSync(STATE_FILE, JSON.stringify({ direction, symbol: SYMBOL, timeframe: TIMEFRAME, updatedAt: new Date().toISOString() }), 'utf8');
+  console.log(`[check-trend] entry ${ENTRY_TF}: ${direction} (score ${score > 0 ? '+' : ''}${score})`);
+  console.log(`[check-trend] context ${CONTEXT_TF}: ${contextDirection} (score ${contextScore > 0 ? '+' : ''}${contextScore})`);
+
+  // Siempre guardamos el estado actual (dirección del entry TF)
+  const now = new Date();
+  saveState(direction, lastAlertAt);
+
+  // ── Filtros para decidir si enviar alerta ─────────────────────────────────
 
   const changed      = direction !== prevDirection;
   const isActionable = direction === 'bull' || direction === 'bear';
 
   if (!changed || !isActionable) {
-    console.log('[check-trend] No actionable change — no alert sent');
+    console.log('[check-trend] Sin cambio accionable — sin alerta');
     return;
   }
 
-  if (!TOKEN || !CHAT_ID) {
-    console.warn('[check-trend] TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not set — skipping alert');
+  // Filtro 1: score mínimo en el entry TF
+  if (Math.abs(score) < MIN_SCORE) {
+    console.log(`[check-trend] Score insuficiente (${score}, mínimo ±${MIN_SCORE}) — sin alerta`);
     return;
   }
+
+  // Filtro 2: el timeframe de contexto debe confirmar la misma dirección
+  if (contextDirection !== direction) {
+    console.log(`[check-trend] Sin confirmación de contexto (entry: ${direction}, context: ${contextDirection}) — sin alerta`);
+    return;
+  }
+
+  // Filtro 3: cooldown entre alertas
+  if (lastAlertAt) {
+    const minutesSinceLast = (now - new Date(lastAlertAt)) / 60_000;
+    if (minutesSinceLast < COOLDOWN_MINUTES) {
+      console.log(`[check-trend] Cooldown activo (${minutesSinceLast.toFixed(1)} min < ${COOLDOWN_MINUTES} min) — sin alerta`);
+      return;
+    }
+  }
+
+  // Filtro 4: credenciales de Telegram
+  if (!TOKEN || !CHAT_ID) {
+    console.warn('[check-trend] TELEGRAM_BOT_TOKEN o TELEGRAM_CHAT_ID no configurados — sin alerta');
+    return;
+  }
+
+  // ── Construir y enviar alerta ─────────────────────────────────────────────
 
   const sigLines = [
     `• Precio vs EMA20:   ${signals.vsEma20      === 1 ? '✅' : '❌'}`,
@@ -302,12 +367,14 @@ async function main() {
 
   const message =
     `<b>📊 Cambio de Tendencia Detectado</b>\n\n` +
-    `Par: <b>${SYMBOL}</b> | Timeframe: <b>${TIMEFRAME}</b>\n` +
-    `Tendencia: <b>${LABELS[direction]}</b> (score ${score > 0 ? '+' : ''}${score}/5)\n\n` +
-    `<b>Señales:</b>\n${sigLines}`;
+    `Par: <b>${SYMBOL}</b>\n` +
+    `Señal (${ENTRY_TF}):    <b>${LABELS[direction]}</b>  (${score > 0 ? '+' : ''}${score}/5)\n` +
+    `Contexto (${CONTEXT_TF}): <b>${LABELS[contextDirection]}</b>  (${contextScore > 0 ? '+' : ''}${contextScore}/5)\n\n` +
+    `<b>Señales (${ENTRY_TF}):</b>\n${sigLines}`;
 
   await sendTelegram(TOKEN, CHAT_ID, message);
-  console.log(`[check-trend] ✅ Alert sent → ${direction}`);
+  saveState(direction, now.toISOString());
+  console.log(`[check-trend] ✅ Alerta enviada → ${direction} (entry: ${ENTRY_TF} + contexto: ${CONTEXT_TF} confirmado)`);
 }
 
 main().catch(err => { console.error('[check-trend] Error inesperado:', err.message ?? err); process.exit(1); });

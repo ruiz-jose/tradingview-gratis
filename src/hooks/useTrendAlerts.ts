@@ -15,7 +15,24 @@ export interface TrendAlert {
   signals: TrendMeterResult["signals"];
 }
 
-const COOLDOWN_MS = 5 * 60 * 1000;
+// Cooldown dinámico: evita re-alertar la misma dirección antes de que "el bar" tenga sentido
+const COOLDOWN_BY_TF: Partial<Record<string, number>> = {
+  "1m":  4  * 60_000,
+  "3m":  6  * 60_000,
+  "5m":  15 * 60_000,
+  "15m": 45 * 60_000,
+  "30m": 90 * 60_000,
+  "1h":  4  * 60 * 60_000,
+  "2h":  6  * 60 * 60_000,
+  "4h":  12 * 60 * 60_000,
+  "6h":  18 * 60 * 60_000,
+  "8h":  24 * 60 * 60_000,
+  "12h": 24 * 60 * 60_000,
+  "1d":  48 * 60 * 60_000,
+};
+function getCooldown(tf: string): number {
+  return COOLDOWN_BY_TF[tf] ?? 5 * 60_000;
+}
 
 function playAlertSound(direction: "bull" | "bear") {
   try {
@@ -87,7 +104,7 @@ export function useTrendAlerts(
     if (!cfg.enabled || !directionChanged || !isActionable || !isStrong) return;
 
     const now = Date.now();
-    if (now - lastAlertTimeRef.current < COOLDOWN_MS) return;
+    if (now - lastAlertTimeRef.current < getCooldown(timeframe)) return;
     lastAlertTimeRef.current = now;
 
     const alert: TrendAlert = {

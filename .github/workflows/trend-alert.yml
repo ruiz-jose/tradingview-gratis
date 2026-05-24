@@ -18,8 +18,11 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      BINANCE_SYMBOL:    BTCUSDT   # cambia el par aquí si quieres
-      BINANCE_TIMEFRAME: 1h        # cambia el timeframe aquí si quieres
+      BINANCE_SYMBOL:    BTCUSDT   # par a monitorear
+      ENTRY_TIMEFRAME:   15m       # timeframe de la señal de entrada
+      CONTEXT_TIMEFRAME: 1h        # timeframe de confirmación (debe alinearse con la señal)
+      MIN_SCORE:         4         # señales mínimas alineadas para enviar alerta (3-5)
+      COOLDOWN_MINUTES:  60        # minutos mínimos entre alertas consecutivas
       STATE_FILE:        .trend-state.json
 
     steps:
@@ -35,10 +38,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.STATE_FILE }}
-          # restore-keys busca el cache más reciente con ese prefijo
-          key: trend-state-${{ env.BINANCE_SYMBOL }}-${{ env.BINANCE_TIMEFRAME }}-${{ github.run_id }}
+          key: trend-state-${{ env.BINANCE_SYMBOL }}-${{ env.ENTRY_TIMEFRAME }}-${{ github.run_id }}
           restore-keys: |
-            trend-state-${{ env.BINANCE_SYMBOL }}-${{ env.BINANCE_TIMEFRAME }}-
+            trend-state-${{ env.BINANCE_SYMBOL }}-${{ env.ENTRY_TIMEFRAME }}-
 
       - name: Check trend & send alert if changed
         env:
@@ -50,4 +52,4 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ${{ env.STATE_FILE }}
-          key: trend-state-${{ env.BINANCE_SYMBOL }}-${{ env.BINANCE_TIMEFRAME }}-${{ github.run_id }}
+          key: trend-state-${{ env.BINANCE_SYMBOL }}-${{ env.ENTRY_TIMEFRAME }}-${{ github.run_id }}

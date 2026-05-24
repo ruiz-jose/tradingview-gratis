@@ -46,7 +46,7 @@ export const DEFAULT_ALERT_CONFIG: AlertConfig = {
   sound: true,
   browser: false,
   telegram: true,
-  minScore: 3,
+  minScore: 4,
 };
 
 export interface IndicatorConfig {
