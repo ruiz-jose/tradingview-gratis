@@ -73,6 +73,15 @@ export interface IndicatorConfig {
   bosLen: number;
 }
 
+type EmaKey = Extract<IndicatorKey, "ema9" | "ema21" | "ema20" | "ema50" | "ema200">;
+
+const EMA_KEYS: EmaKey[] = ["ema9", "ema21", "ema20", "ema50", "ema200"];
+
+interface TfEmaPreset {
+  show: Record<EmaKey, boolean>;
+  ema20Period: number;
+}
+
 export const DEFAULT_CONFIG: IndicatorConfig = {
   ema20: 20,
   ema50: 50,
@@ -95,6 +104,16 @@ export const DEFAULT_CONFIG: IndicatorConfig = {
   cvdEmaLen: 14,
   chopLen: 14,
   bosLen: 5,
+};
+
+const TF_EMA_PRESETS: Partial<Record<string, TfEmaPreset>> = {
+  "1m":  { show: { ema9: true,  ema21: true,  ema20: false, ema50: true,  ema200: false }, ema20Period: DEFAULT_CONFIG.ema20 },
+  "5m":  { show: { ema9: true,  ema21: true,  ema20: false, ema50: true,  ema200: false }, ema20Period: DEFAULT_CONFIG.ema20 },
+  "15m": { show: { ema9: true,  ema21: true,  ema20: false, ema50: true,  ema200: true  }, ema20Period: DEFAULT_CONFIG.ema20 },
+  "1h":  { show: { ema9: true,  ema21: true,  ema20: false, ema50: true,  ema200: true  }, ema20Period: DEFAULT_CONFIG.ema20 },
+  "4h":  { show: { ema9: false, ema21: true,  ema20: true,  ema50: true,  ema200: true  }, ema20Period: 100 },
+  "1d":  { show: { ema9: false, ema21: true,  ema20: true,  ema50: true,  ema200: true  }, ema20Period: 100 },
+  "1w":  { show: { ema9: false, ema21: true,  ema20: false, ema50: true,  ema200: true  }, ema20Period: DEFAULT_CONFIG.ema20 },
 };
 
 export const INDICATOR_COLORS: Record<IndicatorKey, string> = {
@@ -180,8 +199,10 @@ export const useChartStore = create<ChartState>()(
       timeframe: "15m" as Timeframe,
       indicators: {
         ...makeDefaultRecord(false),
-        ema20: true,
+        ema9: true,
+        ema21: true,
         ema50: true,
+        ema200: true,
         rsi: true,
         volume: true,
       },
@@ -197,7 +218,19 @@ export const useChartStore = create<ChartState>()(
       setSymbol: (symbol) => set({ symbol }),
       setAlertConfig: (patch) =>
         set((s) => ({ alertConfig: { ...s.alertConfig, ...patch } })),
-      setTimeframe: (timeframe) => set({ timeframe }),
+      setTimeframe: (timeframe) =>
+        set((s) => {
+          const preset = TF_EMA_PRESETS[timeframe];
+          if (!preset) return { timeframe };
+          const indicators = { ...s.indicators };
+          const hidden = { ...s.hidden };
+          EMA_KEYS.forEach((key) => {
+            indicators[key] = preset.show[key];
+            if (preset.show[key]) hidden[key] = false;
+          });
+          const config = { ...s.config, ema20: preset.ema20Period };
+          return { timeframe, indicators, hidden, config };
+        }),
       toggleIndicator: (key) =>
         set((s) => ({
           indicators: { ...s.indicators, [key]: !s.indicators[key] },
