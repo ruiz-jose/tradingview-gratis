@@ -171,6 +171,9 @@ interface ChartState {
 
   alertConfig: AlertConfig;
 
+  multiMode: boolean;
+  multiTimeframes: [Timeframe, Timeframe, Timeframe, Timeframe];
+
   tool: DrawingTool;
   priceLines: PriceLine[];
   symbolDialogOpen: boolean;
@@ -190,6 +193,8 @@ interface ChartState {
   clearPriceLines: (symbol?: string) => void;
   setSymbolDialogOpen: (v: boolean) => void;
   setSettingsTarget: (k: IndicatorKey | null) => void;
+  setMultiMode: (v: boolean) => void;
+  setMultiTimeframe: (idx: number, tf: Timeframe) => void;
 }
 
 export const useChartStore = create<ChartState>()(
@@ -210,6 +215,8 @@ export const useChartStore = create<ChartState>()(
       config: { ...DEFAULT_CONFIG },
       watchlist: DEFAULT_WATCHLIST,
       alertConfig: { ...DEFAULT_ALERT_CONFIG },
+      multiMode: false,
+      multiTimeframes: ["1m", "5m", "1h", "4h"] as [Timeframe, Timeframe, Timeframe, Timeframe],
       tool: "cursor",
       priceLines: [],
       symbolDialogOpen: false,
@@ -280,6 +287,13 @@ export const useChartStore = create<ChartState>()(
         })),
       setSymbolDialogOpen: (symbolDialogOpen) => set({ symbolDialogOpen }),
       setSettingsTarget: (settingsTarget) => set({ settingsTarget }),
+      setMultiMode: (multiMode) => set({ multiMode }),
+      setMultiTimeframe: (idx, tf) =>
+        set((s) => {
+          const next = [...s.multiTimeframes] as [Timeframe, Timeframe, Timeframe, Timeframe];
+          next[idx] = tf;
+          return { multiTimeframes: next };
+        }),
     }),
     {
       name: "tv-gratis-chart-state",
@@ -291,7 +305,18 @@ export const useChartStore = create<ChartState>()(
         config: s.config,
         watchlist: s.watchlist,
         alertConfig: s.alertConfig,
+        multiMode: s.multiMode,
+        multiTimeframes: s.multiTimeframes,
       }),
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Partial<ChartState>;
+        return {
+          ...current,
+          ...p,
+          config: { ...current.config, ...(p.config ?? {}) },
+          alertConfig: { ...current.alertConfig, ...(p.alertConfig ?? {}) },
+        };
+      },
     },
   ),
 );

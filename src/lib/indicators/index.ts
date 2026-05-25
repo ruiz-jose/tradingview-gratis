@@ -67,7 +67,7 @@ export function sma(candles: Candle[], period: number): IndicatorPoint[] {
 
 export function ema(candles: Candle[], period: number): IndicatorPoint[] {
   const out: IndicatorPoint[] = [];
-  if (candles.length < period) return out;
+  if (!period || period < 1 || candles.length < period) return out;
   const k = 2 / (period + 1);
   let prev = 0;
   for (let i = 0; i < period; i++) prev += candles[i].close;

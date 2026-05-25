@@ -1,11 +1,12 @@
 "use client";
 
-import { Code2, PanelRight, Zap } from "lucide-react";
+import { Code2, LayoutGrid, PanelRight, Zap } from "lucide-react";
 import { SymbolSelector } from "@/components/chart/SymbolSelector";
 import { TimeframeSelector } from "@/components/chart/TimeframeSelector";
 import { IndicatorMenu } from "@/components/chart/IndicatorMenu";
 import { AlertSettingsButton } from "@/components/chart/AlertSettingsButton";
 import { Separator } from "@/components/ui/separator";
+import { useChartStore } from "@/lib/store/chart-store";
 import { cn } from "@/lib/utils";
 
 interface HeaderProps {
@@ -14,6 +15,9 @@ interface HeaderProps {
 }
 
 export function Header({ watchlistOpen, onToggleWatchlist }: HeaderProps) {
+  const multiMode = useChartStore((s) => s.multiMode);
+  const setMultiMode = useChartStore((s) => s.setMultiMode);
+
   return (
     <header className="flex h-12 items-center justify-between border-b border-tv-border bg-tv-panel px-3">
       <div className="flex items-center gap-1">
@@ -28,7 +32,22 @@ export function Header({ watchlistOpen, onToggleWatchlist }: HeaderProps) {
         <Separator orientation="vertical" className="hidden h-6 bg-tv-border sm:block" />
         <SymbolSelector />
         <Separator orientation="vertical" className="h-6 bg-tv-border" />
-        <TimeframeSelector />
+        {!multiMode && <TimeframeSelector />}
+        {!multiMode && <Separator orientation="vertical" className="mx-1 h-6 bg-tv-border" />}
+        <button
+          onClick={() => setMultiMode(!multiMode)}
+          aria-label="Vista multi-temporalidad"
+          title="Ver 4 temporalidades"
+          className={cn(
+            "flex h-8 items-center gap-1.5 rounded px-2 transition-colors",
+            multiMode
+              ? "bg-tv-blue/15 text-tv-blue"
+              : "text-tv-text-muted hover:bg-tv-panel-hover hover:text-tv-text",
+          )}
+        >
+          <LayoutGrid className="h-3.5 w-3.5" />
+          <span className="text-xs font-medium">4</span>
+        </button>
         <Separator orientation="vertical" className="mx-1 h-6 bg-tv-border" />
         <IndicatorMenu />
       </div>
