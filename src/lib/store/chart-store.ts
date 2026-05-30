@@ -119,27 +119,34 @@ export const DEFAULT_CONFIG: IndicatorConfig = {
   bosLen: 5,
 };
 
-// Criterio profesional por categoría de temporalidad:
-//   Scalp     (1m·3m·5m)     → EMA 9, 21, 50          | SMA 9, 20
-//   Intraday  (15m·30m·1h)   → EMA 9, 21, 50, 100, 200 | SMA 50, 100, 200
-//   Swing     (4h·1d)        → EMA 12, 26, 50, 200     | SMA 50, 100, 200 (Golden/Death Cross)
-//   Posicional(1w·1M)        → EMA 21, 55, 200         | SMA 20, 50, 200 (domina en macro)
-// Los slots sma20/sma50/sma200 reutilizan su período igual que los slots EMA.
+// Criterio profesional — solo los 6 indicadores clave para BTC:
+//   EMA 9    → Scalp · Intraday         (señal rápida)
+//   EMA 21   → Scalp · Intraday         (confirmación)
+//   EMA 50   → Intraday · Swing         (tendencia media)
+//   SMA 50   → Swing · Posicional       (S/R dinámico)
+//   EMA 200  → Swing · 4h · Diario      (macro bias)
+//   SMA 200  → Diario · Semanal         (el rey del mercado)
+const OFF = false as const;
+const ON  = true  as const;
+const BASE_EMA = { ema9: 9, ema21: 21, ema20: 20, ema50: 50, ema200: 200 } as const;
+const BASE_SMA = { sma20: 20, sma50: 50, sma200: 200 } as const;
+
 const TF_EMA_PRESETS: Partial<Record<string, TfEmaPreset>> = {
-  // ── Scalp ──────────────────────────────────────────────────────────────────
-  "1m":  { show: { ema9: true,  ema21: true,  ema20: false, ema50: true,  ema200: false }, emaConfig: { ema9: 9,  ema21: 21, ema20: 20,  ema50: 50,  ema200: 200 }, smaShow: { sma20: true,  sma50: true,  sma200: false }, smaConfig: { sma20: 9,  sma50: 20,  sma200: 200 } },
-  "3m":  { show: { ema9: true,  ema21: true,  ema20: false, ema50: true,  ema200: false }, emaConfig: { ema9: 9,  ema21: 21, ema20: 20,  ema50: 50,  ema200: 200 }, smaShow: { sma20: true,  sma50: true,  sma200: false }, smaConfig: { sma20: 9,  sma50: 20,  sma200: 200 } },
-  "5m":  { show: { ema9: true,  ema21: true,  ema20: false, ema50: true,  ema200: false }, emaConfig: { ema9: 9,  ema21: 21, ema20: 20,  ema50: 50,  ema200: 200 }, smaShow: { sma20: true,  sma50: true,  sma200: false }, smaConfig: { sma20: 9,  sma50: 20,  sma200: 200 } },
-  // ── Intraday ───────────────────────────────────────────────────────────────
-  "15m": { show: { ema9: true,  ema21: true,  ema20: true,  ema50: true,  ema200: true  }, emaConfig: { ema9: 9,  ema21: 21, ema20: 100, ema50: 50,  ema200: 200 }, smaShow: { sma20: true,  sma50: true,  sma200: true  }, smaConfig: { sma20: 100, sma50: 50,  sma200: 200 } },
-  "30m": { show: { ema9: true,  ema21: true,  ema20: true,  ema50: true,  ema200: true  }, emaConfig: { ema9: 9,  ema21: 21, ema20: 100, ema50: 50,  ema200: 200 }, smaShow: { sma20: true,  sma50: true,  sma200: true  }, smaConfig: { sma20: 100, sma50: 50,  sma200: 200 } },
-  "1h":  { show: { ema9: true,  ema21: true,  ema20: true,  ema50: true,  ema200: true  }, emaConfig: { ema9: 9,  ema21: 21, ema20: 100, ema50: 50,  ema200: 200 }, smaShow: { sma20: true,  sma50: true,  sma200: true  }, smaConfig: { sma20: 100, sma50: 50,  sma200: 200 } },
-  // ── Swing ──────────────────────────────────────────────────────────────────
-  "4h":  { show: { ema9: true,  ema21: false, ema20: true,  ema50: true,  ema200: true  }, emaConfig: { ema9: 12, ema21: 21, ema20: 26,  ema50: 50,  ema200: 200 }, smaShow: { sma20: true,  sma50: true,  sma200: true  }, smaConfig: { sma20: 100, sma50: 50,  sma200: 200 } },
-  "1d":  { show: { ema9: true,  ema21: false, ema20: true,  ema50: true,  ema200: true  }, emaConfig: { ema9: 12, ema21: 21, ema20: 26,  ema50: 50,  ema200: 200 }, smaShow: { sma20: true,  sma50: true,  sma200: true  }, smaConfig: { sma20: 100, sma50: 50,  sma200: 200 } },
-  // ── Posicional ─────────────────────────────────────────────────────────────
-  "1w":  { show: { ema9: false, ema21: true,  ema20: true,  ema50: true,  ema200: true  }, emaConfig: { ema9: 9,  ema21: 21, ema20: 55,  ema50: 50,  ema200: 200 }, smaShow: { sma20: true,  sma50: true,  sma200: true  }, smaConfig: { sma20: 20,  sma50: 50,  sma200: 200 } },
-  "1M":  { show: { ema9: false, ema21: true,  ema20: false, ema50: true,  ema200: true  }, emaConfig: { ema9: 9,  ema21: 21, ema20: 55,  ema50: 50,  ema200: 200 }, smaShow: { sma20: true,  sma50: true,  sma200: true  }, smaConfig: { sma20: 20,  sma50: 50,  sma200: 200 } },
+  // ── Scalp: EMA 9 + EMA 21 ──────────────────────────────────────────────────
+  "1m": { show: { ema9: ON,  ema21: ON,  ema20: OFF, ema50: OFF, ema200: OFF }, emaConfig: BASE_EMA, smaShow: { sma20: OFF, sma50: OFF, sma200: OFF }, smaConfig: BASE_SMA },
+  "3m": { show: { ema9: ON,  ema21: ON,  ema20: OFF, ema50: OFF, ema200: OFF }, emaConfig: BASE_EMA, smaShow: { sma20: OFF, sma50: OFF, sma200: OFF }, smaConfig: BASE_SMA },
+  "5m": { show: { ema9: ON,  ema21: ON,  ema20: OFF, ema50: OFF, ema200: OFF }, emaConfig: BASE_EMA, smaShow: { sma20: OFF, sma50: OFF, sma200: OFF }, smaConfig: BASE_SMA },
+  // ── Intraday: EMA 9 + EMA 21 + EMA 50 ─────────────────────────────────────
+  "15m": { show: { ema9: ON,  ema21: ON,  ema20: OFF, ema50: ON,  ema200: OFF }, emaConfig: BASE_EMA, smaShow: { sma20: OFF, sma50: OFF, sma200: OFF }, smaConfig: BASE_SMA },
+  "30m": { show: { ema9: ON,  ema21: ON,  ema20: OFF, ema50: ON,  ema200: OFF }, emaConfig: BASE_EMA, smaShow: { sma20: OFF, sma50: OFF, sma200: OFF }, smaConfig: BASE_SMA },
+  "1h":  { show: { ema9: ON,  ema21: ON,  ema20: OFF, ema50: ON,  ema200: OFF }, emaConfig: BASE_EMA, smaShow: { sma20: OFF, sma50: OFF, sma200: OFF }, smaConfig: BASE_SMA },
+  // ── Swing: EMA 50 + EMA 200 + SMA 50 ──────────────────────────────────────
+  "4h": { show: { ema9: OFF, ema21: OFF, ema20: OFF, ema50: ON,  ema200: ON  }, emaConfig: BASE_EMA, smaShow: { sma20: OFF, sma50: ON,  sma200: OFF }, smaConfig: BASE_SMA },
+  // ── Diario: EMA 50 + EMA 200 + SMA 50 + SMA 200 ───────────────────────────
+  "1d": { show: { ema9: OFF, ema21: OFF, ema20: OFF, ema50: ON,  ema200: ON  }, emaConfig: BASE_EMA, smaShow: { sma20: OFF, sma50: ON,  sma200: ON  }, smaConfig: BASE_SMA },
+  // ── Posicional: SMA 50 + SMA 200 ──────────────────────────────────────────
+  "1w": { show: { ema9: OFF, ema21: OFF, ema20: OFF, ema50: OFF, ema200: OFF }, emaConfig: BASE_EMA, smaShow: { sma20: OFF, sma50: ON,  sma200: ON  }, smaConfig: BASE_SMA },
+  "1M": { show: { ema9: OFF, ema21: OFF, ema20: OFF, ema50: OFF, ema200: OFF }, emaConfig: BASE_EMA, smaShow: { sma20: OFF, sma50: ON,  sma200: ON  }, smaConfig: BASE_SMA },
 };
 
 export const INDICATOR_COLORS: Record<IndicatorKey, string> = {
@@ -166,6 +173,23 @@ export const INDICATOR_COLORS: Record<IndicatorKey, string> = {
   patterns: "#ffb74d",
   trendmeter: "#2962ff",
 };
+
+/** Devuelve los indicadores activos según el preset de temporalidad (para multi-panel). */
+export function resolvePresetIndicators(tf: string): Record<IndicatorKey, boolean> {
+  const base: Record<IndicatorKey, boolean> = {
+    ema20: false, ema50: false, ema200: false, ema9: false, ema21: false,
+    sma20: false, sma50: false, sma200: false,
+    rsi: false, macd: false, volume: true,
+    supertrend: false, bbands: false, vwap: false,
+    stochrsi: false, adx: false, cvd: false, atr: false, chop: false,
+    bos: false, patterns: false, trendmeter: false,
+  };
+  const preset = TF_EMA_PRESETS[tf];
+  if (!preset) return base;
+  EMA_KEYS.forEach((k) => { base[k] = preset.show[k]; });
+  SMA_KEYS.forEach((k) => { base[k] = preset.smaShow[k]; });
+  return base;
+}
 
 export const DEFAULT_WATCHLIST = [
   "BTCUSDT",

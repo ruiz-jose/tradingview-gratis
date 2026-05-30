@@ -41,7 +41,7 @@ export function MultiChartGrid() {
       {multiTimeframes.map((tf, i) => (
         <div key={i} className="relative min-h-0 overflow-hidden bg-tv-bg">
           <MiniTimeframeSelector index={i} />
-          <PriceChart symbol={symbol} timeframe={tf} />
+          <PriceChart symbol={symbol} timeframe={tf} usePreset />
         </div>
       ))}
     </div>

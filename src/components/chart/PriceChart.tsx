@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   createChart,
   createSeriesMarkers,
@@ -37,6 +37,7 @@ import type { Candle, Timeframe } from "@/lib/binance/types";
 import {
   INDICATOR_COLORS,
   useChartStore,
+  resolvePresetIndicators,
   type IndicatorKey,
 } from "@/lib/store/chart-store";
 import { formatPrice, formatVolume } from "@/lib/format";
@@ -69,7 +70,7 @@ function durationLabel(aTime: number, bTime: number): string {
   return `${minutes}m`;
 }
 
-interface Props { symbol: string; timeframe: Timeframe }
+interface Props { symbol: string; timeframe: Timeframe; usePreset?: boolean }
 
 const TV = {
   bg: "#131722",
@@ -104,7 +105,7 @@ interface LastValues {
 
 interface PaneOffset { top: number; height: number }
 
-export function PriceChart({ symbol, timeframe }: Props) {
+export function PriceChart({ symbol, timeframe, usePreset = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
 
@@ -170,8 +171,17 @@ export function PriceChart({ symbol, timeframe }: Props) {
   const markersRef = useRef<{ setMarkers: (m: any[]) => void } | null>(null);
 
   // ── Store ─────────────────────────────────────────────────────────────────
-  const indicators     = useChartStore((s) => s.indicators);
-  const hidden         = useChartStore((s) => s.hidden);
+  const storeIndicators = useChartStore((s) => s.indicators);
+  const storeHidden     = useChartStore((s) => s.hidden);
+  // En modo multi-panel cada ventana usa los indicadores canónicos de su temporalidad.
+  const indicators = useMemo(
+    () => usePreset ? resolvePresetIndicators(timeframe) : storeIndicators,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [usePreset, timeframe, storeIndicators],
+  );
+  const hidden = usePreset
+    ? ({} as Record<IndicatorKey, boolean>)  // nada oculto en preset
+    : storeHidden;
   const config         = useChartStore((s) => s.config);
   const alertConfig    = useChartStore((s) => s.alertConfig);
   const tool           = useChartStore((s) => s.tool);
