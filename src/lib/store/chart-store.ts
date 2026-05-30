@@ -10,6 +10,9 @@ export type IndicatorKey =
   | "ema200"
   | "ema9"
   | "ema21"
+  | "sma20"
+  | "sma50"
+  | "sma200"
   | "rsi"
   | "macd"
   | "volume"
@@ -55,6 +58,9 @@ export interface IndicatorConfig {
   ema200: number;
   ema9: number;
   ema21: number;
+  sma20: number;
+  sma50: number;
+  sma200: number;
   rsi: number;
   macdFast: number;
   macdSlow: number;
@@ -74,12 +80,16 @@ export interface IndicatorConfig {
 }
 
 type EmaKey = Extract<IndicatorKey, "ema9" | "ema21" | "ema20" | "ema50" | "ema200">;
+type SmaKey = Extract<IndicatorKey, "sma20" | "sma50" | "sma200">;
 
 const EMA_KEYS: EmaKey[] = ["ema9", "ema21", "ema20", "ema50", "ema200"];
+const SMA_KEYS: SmaKey[] = ["sma20", "sma50", "sma200"];
 
 interface TfEmaPreset {
   show: Record<EmaKey, boolean>;
-  ema20Period: number;
+  emaConfig: Pick<IndicatorConfig, EmaKey>;
+  smaShow: Record<SmaKey, boolean>;
+  smaConfig: Pick<IndicatorConfig, SmaKey>;
 }
 
 export const DEFAULT_CONFIG: IndicatorConfig = {
@@ -88,6 +98,9 @@ export const DEFAULT_CONFIG: IndicatorConfig = {
   ema200: 200,
   ema9: 9,
   ema21: 21,
+  sma20: 20,
+  sma50: 50,
+  sma200: 200,
   rsi: 14,
   macdFast: 12,
   macdSlow: 26,
@@ -106,14 +119,27 @@ export const DEFAULT_CONFIG: IndicatorConfig = {
   bosLen: 5,
 };
 
+// Criterio profesional por categoría de temporalidad:
+//   Scalp     (1m·3m·5m)     → EMA 9, 21, 50          | SMA 9, 20
+//   Intraday  (15m·30m·1h)   → EMA 9, 21, 50, 100, 200 | SMA 50, 100, 200
+//   Swing     (4h·1d)        → EMA 12, 26, 50, 200     | SMA 50, 100, 200 (Golden/Death Cross)
+//   Posicional(1w·1M)        → EMA 21, 55, 200         | SMA 20, 50, 200 (domina en macro)
+// Los slots sma20/sma50/sma200 reutilizan su período igual que los slots EMA.
 const TF_EMA_PRESETS: Partial<Record<string, TfEmaPreset>> = {
-  "1m":  { show: { ema9: true,  ema21: true,  ema20: false, ema50: true,  ema200: false }, ema20Period: DEFAULT_CONFIG.ema20 },
-  "5m":  { show: { ema9: true,  ema21: true,  ema20: false, ema50: true,  ema200: false }, ema20Period: DEFAULT_CONFIG.ema20 },
-  "15m": { show: { ema9: true,  ema21: true,  ema20: false, ema50: true,  ema200: true  }, ema20Period: DEFAULT_CONFIG.ema20 },
-  "1h":  { show: { ema9: true,  ema21: true,  ema20: false, ema50: true,  ema200: true  }, ema20Period: DEFAULT_CONFIG.ema20 },
-  "4h":  { show: { ema9: false, ema21: true,  ema20: true,  ema50: true,  ema200: true  }, ema20Period: 100 },
-  "1d":  { show: { ema9: false, ema21: true,  ema20: true,  ema50: true,  ema200: true  }, ema20Period: 100 },
-  "1w":  { show: { ema9: false, ema21: true,  ema20: false, ema50: true,  ema200: true  }, ema20Period: DEFAULT_CONFIG.ema20 },
+  // ── Scalp ──────────────────────────────────────────────────────────────────
+  "1m":  { show: { ema9: true,  ema21: true,  ema20: false, ema50: true,  ema200: false }, emaConfig: { ema9: 9,  ema21: 21, ema20: 20,  ema50: 50,  ema200: 200 }, smaShow: { sma20: true,  sma50: true,  sma200: false }, smaConfig: { sma20: 9,  sma50: 20,  sma200: 200 } },
+  "3m":  { show: { ema9: true,  ema21: true,  ema20: false, ema50: true,  ema200: false }, emaConfig: { ema9: 9,  ema21: 21, ema20: 20,  ema50: 50,  ema200: 200 }, smaShow: { sma20: true,  sma50: true,  sma200: false }, smaConfig: { sma20: 9,  sma50: 20,  sma200: 200 } },
+  "5m":  { show: { ema9: true,  ema21: true,  ema20: false, ema50: true,  ema200: false }, emaConfig: { ema9: 9,  ema21: 21, ema20: 20,  ema50: 50,  ema200: 200 }, smaShow: { sma20: true,  sma50: true,  sma200: false }, smaConfig: { sma20: 9,  sma50: 20,  sma200: 200 } },
+  // ── Intraday ───────────────────────────────────────────────────────────────
+  "15m": { show: { ema9: true,  ema21: true,  ema20: true,  ema50: true,  ema200: true  }, emaConfig: { ema9: 9,  ema21: 21, ema20: 100, ema50: 50,  ema200: 200 }, smaShow: { sma20: true,  sma50: true,  sma200: true  }, smaConfig: { sma20: 100, sma50: 50,  sma200: 200 } },
+  "30m": { show: { ema9: true,  ema21: true,  ema20: true,  ema50: true,  ema200: true  }, emaConfig: { ema9: 9,  ema21: 21, ema20: 100, ema50: 50,  ema200: 200 }, smaShow: { sma20: true,  sma50: true,  sma200: true  }, smaConfig: { sma20: 100, sma50: 50,  sma200: 200 } },
+  "1h":  { show: { ema9: true,  ema21: true,  ema20: true,  ema50: true,  ema200: true  }, emaConfig: { ema9: 9,  ema21: 21, ema20: 100, ema50: 50,  ema200: 200 }, smaShow: { sma20: true,  sma50: true,  sma200: true  }, smaConfig: { sma20: 100, sma50: 50,  sma200: 200 } },
+  // ── Swing ──────────────────────────────────────────────────────────────────
+  "4h":  { show: { ema9: true,  ema21: false, ema20: true,  ema50: true,  ema200: true  }, emaConfig: { ema9: 12, ema21: 21, ema20: 26,  ema50: 50,  ema200: 200 }, smaShow: { sma20: true,  sma50: true,  sma200: true  }, smaConfig: { sma20: 100, sma50: 50,  sma200: 200 } },
+  "1d":  { show: { ema9: true,  ema21: false, ema20: true,  ema50: true,  ema200: true  }, emaConfig: { ema9: 12, ema21: 21, ema20: 26,  ema50: 50,  ema200: 200 }, smaShow: { sma20: true,  sma50: true,  sma200: true  }, smaConfig: { sma20: 100, sma50: 50,  sma200: 200 } },
+  // ── Posicional ─────────────────────────────────────────────────────────────
+  "1w":  { show: { ema9: false, ema21: true,  ema20: true,  ema50: true,  ema200: true  }, emaConfig: { ema9: 9,  ema21: 21, ema20: 55,  ema50: 50,  ema200: 200 }, smaShow: { sma20: true,  sma50: true,  sma200: true  }, smaConfig: { sma20: 20,  sma50: 50,  sma200: 200 } },
+  "1M":  { show: { ema9: false, ema21: true,  ema20: false, ema50: true,  ema200: true  }, emaConfig: { ema9: 9,  ema21: 21, ema20: 55,  ema50: 50,  ema200: 200 }, smaShow: { sma20: true,  sma50: true,  sma200: true  }, smaConfig: { sma20: 20,  sma50: 50,  sma200: 200 } },
 };
 
 export const INDICATOR_COLORS: Record<IndicatorKey, string> = {
@@ -122,6 +148,9 @@ export const INDICATOR_COLORS: Record<IndicatorKey, string> = {
   ema200: "#ab47bc",
   ema9: "#26c6da",
   ema21: "#66bb6a",
+  sma20: "#ff9800",
+  sma50: "#00bcd4",
+  sma200: "#e91e63",
   rsi: "#ab47bc",
   macd: "#2962ff",
   volume: "#787b86",
@@ -154,6 +183,7 @@ export const DEFAULT_WATCHLIST = [
 function makeDefaultRecord<T>(val: T): Record<IndicatorKey, T> {
   return {
     ema20: val, ema50: val, ema200: val, ema9: val, ema21: val,
+    sma20: val, sma50: val, sma200: val,
     rsi: val, macd: val, volume: val,
     supertrend: val, bbands: val, vwap: val,
     stochrsi: val, adx: val, cvd: val, atr: val, chop: val,
@@ -235,7 +265,11 @@ export const useChartStore = create<ChartState>()(
             indicators[key] = preset.show[key];
             if (preset.show[key]) hidden[key] = false;
           });
-          const config = { ...s.config, ema20: preset.ema20Period };
+          SMA_KEYS.forEach((key) => {
+            indicators[key] = preset.smaShow[key];
+            if (preset.smaShow[key]) hidden[key] = false;
+          });
+          const config = { ...s.config, ...preset.emaConfig, ...preset.smaConfig };
           return { timeframe, indicators, hidden, config };
         }),
       toggleIndicator: (key) =>

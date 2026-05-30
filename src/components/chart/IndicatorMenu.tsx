@@ -19,12 +19,16 @@ interface Entry {
 }
 
 const ENTRIES: Entry[] = [
-  // Medias móviles
+  // Medias móviles — EMA
   { key: "ema9",   group: "Medias móviles", label: (c) => `EMA ${c.ema9}` },
   { key: "ema21",  group: "Medias móviles", label: (c) => `EMA ${c.ema21}` },
   { key: "ema20",  group: "Medias móviles", label: (c) => `EMA ${c.ema20}` },
   { key: "ema50",  group: "Medias móviles", label: (c) => `EMA ${c.ema50}` },
   { key: "ema200", group: "Medias móviles", label: (c) => `EMA ${c.ema200}` },
+  // Medias móviles — SMA
+  { key: "sma20",  group: "Medias móviles", label: (c) => `SMA ${c.sma20}` },
+  { key: "sma50",  group: "Medias móviles", label: (c) => `SMA ${c.sma50}` },
+  { key: "sma200", group: "Medias móviles", label: (c) => `SMA ${c.sma200}` },
   // Tendencia
   { key: "supertrend", group: "Tendencia", label: (c) => `Supertrend (${c.supertrendAtr}, ${c.supertrendFactor})` },
   { key: "bbands",     group: "Tendencia", label: (c) => `Bollinger Bands (${c.bbandsLen}, ${c.bbandsMultiplier})` },

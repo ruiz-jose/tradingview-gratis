@@ -22,6 +22,9 @@ const TITLES: Record<IndicatorKey, string> = {
   ema200: "EMA — Slot C",
   ema9: "EMA 9",
   ema21: "EMA 21",
+  sma20: "SMA — Slot A",
+  sma50: "SMA — Slot B",
+  sma200: "SMA — Slot C",
   rsi: "RSI",
   macd: "MACD",
   volume: "Volumen",
@@ -91,6 +94,9 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
       case "ema200": return onSave({ ema200: clamp(draft.ema200, 2, 500) });
       case "ema9":   return onSave({ ema9: clamp(draft.ema9, 2, 500) });
       case "ema21":  return onSave({ ema21: clamp(draft.ema21, 2, 500) });
+      case "sma20":  return onSave({ sma20: clamp(draft.sma20, 2, 500) });
+      case "sma50":  return onSave({ sma50: clamp(draft.sma50, 2, 500) });
+      case "sma200": return onSave({ sma200: clamp(draft.sma200, 2, 500) });
       case "rsi":    return onSave({ rsi: clamp(draft.rsi, 2, 100) });
       case "macd":
         return onSave({
@@ -129,7 +135,8 @@ function SettingsForm({ target, config, onSave, onReset }: FormProps) {
   return (
     <div className="flex flex-col gap-3">
       {(target === "ema20" || target === "ema50" || target === "ema200" ||
-        target === "ema9" || target === "ema21") && (
+        target === "ema9" || target === "ema21" ||
+        target === "sma20" || target === "sma50" || target === "sma200") && (
         <Field label="Período" value={draft[target as keyof IndicatorConfig] as number}
           onChange={set(target as keyof IndicatorConfig)} />
       )}

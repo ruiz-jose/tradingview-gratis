@@ -17,6 +17,7 @@ import { fetchKlines } from "@/lib/binance/rest";
 import { getBinanceWS } from "@/lib/binance/ws";
 import {
   ema,
+  sma,
   rsi,
   macd,
   atr,
@@ -89,6 +90,7 @@ interface HoverInfo { o: number; h: number; l: number; c: number; v: number; tim
 interface LastValues {
   ema20?: number; ema50?: number; ema200?: number;
   ema9?: number; ema21?: number;
+  sma20?: number; sma50?: number; sma200?: number;
   rsi?: number;
   macd?: number; macdSignal?: number; macdHist?: number;
   volume?: number;
@@ -114,6 +116,9 @@ export function PriceChart({ symbol, timeframe }: Props) {
   const ema200Ref  = useRef<ISeriesApi<"Line"> | null>(null);
   const ema9Ref    = useRef<ISeriesApi<"Line"> | null>(null);
   const ema21Ref   = useRef<ISeriesApi<"Line"> | null>(null);
+  const sma20Ref   = useRef<ISeriesApi<"Line"> | null>(null);
+  const sma50Ref   = useRef<ISeriesApi<"Line"> | null>(null);
+  const sma200Ref  = useRef<ISeriesApi<"Line"> | null>(null);
   // Supertrend — two series (green = bullish, red = bearish)
   const stBullRef  = useRef<ISeriesApi<"Line"> | null>(null);
   const stBearRef  = useRef<ISeriesApi<"Line"> | null>(null);
@@ -255,6 +260,11 @@ export function PriceChart({ symbol, timeframe }: Props) {
     ema20Ref.current  = chart.addSeries(LineSeries, { ...lineOpts, color: INDICATOR_COLORS.ema20,  visible: false });
     ema50Ref.current  = chart.addSeries(LineSeries, { ...lineOpts, color: INDICATOR_COLORS.ema50,  visible: false });
     ema200Ref.current = chart.addSeries(LineSeries, { ...lineOpts, color: INDICATOR_COLORS.ema200, lineWidth: 2, priceLineVisible: false, lastValueVisible: false, visible: false });
+    // SMAs (dashed lines to distinguish from EMA)
+    const smaOpts = { ...lineOpts, lineStyle: 2 as const };
+    sma20Ref.current  = chart.addSeries(LineSeries, { ...smaOpts, color: INDICATOR_COLORS.sma20,  visible: false });
+    sma50Ref.current  = chart.addSeries(LineSeries, { ...smaOpts, color: INDICATOR_COLORS.sma50,  visible: false });
+    sma200Ref.current = chart.addSeries(LineSeries, { ...smaOpts, color: INDICATOR_COLORS.sma200, lineWidth: 2, priceLineVisible: false, lastValueVisible: false, visible: false });
 
     // Supertrend (two colour-coded lines, always present)
     stBullRef.current = chart.addSeries(LineSeries, { ...lineOpts, color: TV.green,  visible: false });
@@ -518,6 +528,9 @@ export function PriceChart({ symbol, timeframe }: Props) {
     ema20Ref.current?.applyOptions({ visible: v("ema20") });
     ema50Ref.current?.applyOptions({ visible: v("ema50") });
     ema200Ref.current?.applyOptions({ visible: v("ema200") });
+    sma20Ref.current?.applyOptions({ visible: v("sma20") });
+    sma50Ref.current?.applyOptions({ visible: v("sma50") });
+    sma200Ref.current?.applyOptions({ visible: v("sma200") });
     const stVisible = v("supertrend");
     stBullRef.current?.applyOptions({ visible: stVisible });
     stBearRef.current?.applyOptions({ visible: stVisible });
@@ -556,6 +569,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
 
   // ── Config-driven recomputes ──────────────────────────────────────────────
   useEffect(() => { updateEMAs(); }, [config.ema20, config.ema50, config.ema200, config.ema9, config.ema21]);
+  useEffect(() => { updateSMAs(); }, [config.sma20, config.sma50, config.sma200]);
   useEffect(() => { updateRSI(); }, [config.rsi]);
   useEffect(() => { updateMACD(); }, [config.macdFast, config.macdSlow, config.macdSignal]);
   useEffect(() => { updateSupertrend(); }, [config.supertrendAtr, config.supertrendFactor]);
@@ -636,6 +650,31 @@ export function PriceChart({ symbol, timeframe }: Props) {
     }
     const lastVol = c.at(-1)?.volume;
     setLastValues((prev) => ({ ...prev, ema9: last9, ema21: last21, ema20: last20, ema50: last50, ema200: last200, volume: lastVol }));
+  }
+
+  function updateSMAs() {
+    const c = candlesRef.current;
+    if (c.length === 0) return;
+    const cfg = configRef.current;
+    const indics = indicatorsRef.current;
+    let last20: number | undefined, last50: number | undefined, last200: number | undefined;
+
+    if (sma20Ref.current && indics.sma20) {
+      const d = sma(c, cfg.sma20);
+      sma20Ref.current.setData(d.map((p) => ({ time: p.time as UTCTimestamp, value: p.value })));
+      last20 = d.at(-1)?.value;
+    }
+    if (sma50Ref.current && indics.sma50) {
+      const d = sma(c, cfg.sma50);
+      sma50Ref.current.setData(d.map((p) => ({ time: p.time as UTCTimestamp, value: p.value })));
+      last50 = d.at(-1)?.value;
+    }
+    if (sma200Ref.current && indics.sma200) {
+      const d = sma(c, cfg.sma200);
+      sma200Ref.current.setData(d.map((p) => ({ time: p.time as UTCTimestamp, value: p.value })));
+      last200 = d.at(-1)?.value;
+    }
+    setLastValues((prev) => ({ ...prev, sma20: last20, sma50: last50, sma200: last200 }));
   }
 
   function updateRSI() {
@@ -821,6 +860,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
         }
 
         updateEMAs();
+        updateSMAs();
         updateRSI();
         updateMACD();
         updateSupertrend();
@@ -863,6 +903,7 @@ export function PriceChart({ symbol, timeframe }: Props) {
             if (volumeSeriesRef.current) volumeSeriesRef.current.update({ time: k.time as UTCTimestamp, value: k.volume, color: k.close >= k.open ? `${TV.green}66` : `${TV.red}66` });
 
             updateEMAs();
+            updateSMAs();
             updateRSI();
             updateMACD();
             updateSupertrend();
@@ -988,6 +1029,15 @@ export function PriceChart({ symbol, timeframe }: Props) {
           )}
           {indicators.ema200 && (
             <IndicatorPill name={`EMA ${config.ema200}`} value={lastValues.ema200 !== undefined ? formatPrice(lastValues.ema200) : undefined} color={INDICATOR_COLORS.ema200} hidden={hidden.ema200} onToggleHide={() => toggleHidden("ema200")} onSettings={() => setSettingsTarget("ema200")} onRemove={() => removeIndicator("ema200")} />
+          )}
+          {indicators.sma20 && (
+            <IndicatorPill name={`SMA ${config.sma20}`} value={lastValues.sma20 !== undefined ? formatPrice(lastValues.sma20) : undefined} color={INDICATOR_COLORS.sma20} hidden={hidden.sma20} onToggleHide={() => toggleHidden("sma20")} onSettings={() => setSettingsTarget("sma20")} onRemove={() => removeIndicator("sma20")} />
+          )}
+          {indicators.sma50 && (
+            <IndicatorPill name={`SMA ${config.sma50}`} value={lastValues.sma50 !== undefined ? formatPrice(lastValues.sma50) : undefined} color={INDICATOR_COLORS.sma50} hidden={hidden.sma50} onToggleHide={() => toggleHidden("sma50")} onSettings={() => setSettingsTarget("sma50")} onRemove={() => removeIndicator("sma50")} />
+          )}
+          {indicators.sma200 && (
+            <IndicatorPill name={`SMA ${config.sma200}`} value={lastValues.sma200 !== undefined ? formatPrice(lastValues.sma200) : undefined} color={INDICATOR_COLORS.sma200} hidden={hidden.sma200} onToggleHide={() => toggleHidden("sma200")} onSettings={() => setSettingsTarget("sma200")} onRemove={() => removeIndicator("sma200")} />
           )}
           {indicators.supertrend && (
             <IndicatorPill name={`ST ${config.supertrendAtr}, ${config.supertrendFactor}`} value={undefined} color={INDICATOR_COLORS.supertrend} hidden={hidden.supertrend} onToggleHide={() => toggleHidden("supertrend")} onSettings={() => setSettingsTarget("supertrend")} onRemove={() => removeIndicator("supertrend")} />
