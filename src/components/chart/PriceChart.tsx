@@ -1142,18 +1142,18 @@ export function PriceChart({ symbol, timeframe, usePreset = false }: Props) {
         >
           <div className={`flex flex-col gap-1 rounded border px-3 py-2 text-xs backdrop-blur-sm ${
             trendResult.direction === "bull"
-              ? "border-[#26a69a]/40 bg-[#26a69a]/10"
+              ? "border-tv-green/40 bg-tv-green/10"
               : trendResult.direction === "bear"
-              ? "border-[#ef5350]/40 bg-[#ef5350]/10"
-              : "border-[#787b86]/40 bg-[#787b86]/10"
+              ? "border-tv-red/40 bg-tv-red/10"
+              : "border-tv-text-muted/40 bg-tv-text-muted/10"
           }`}>
             {/* Título + veredicto */}
             <div className="flex items-center gap-2">
               <span className="text-[10px] uppercase tracking-wider text-tv-text-muted">Tendencia</span>
               <span className={`font-bold tracking-wide ${
-                trendResult.direction === "bull" ? "text-[#26a69a]"
-                : trendResult.direction === "bear" ? "text-[#ef5350]"
-                : "text-[#ffb74d]"
+                trendResult.direction === "bull" ? "text-tv-green"
+                : trendResult.direction === "bear" ? "text-tv-red"
+                : "text-tv-yellow"
               }`}>
                 {trendResult.direction === "bull" ? "▲ ALCISTA"
                   : trendResult.direction === "bear" ? "▼ BAJISTA"
