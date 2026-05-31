@@ -256,14 +256,10 @@ export const useChartStore = create<ChartState>()(
     (set) => ({
       symbol: "BTCUSDT",
       timeframe: "15m" as Timeframe,
+      // Estado inicial = preset de la temporalidad por defecto (15m: EMA 9 + EMA 21 + EMA 50)
       indicators: {
         ...makeDefaultRecord(false),
-        ema9: true,
-        ema21: true,
-        ema50: true,
-        ema200: true,
-        rsi: true,
-        volume: true,
+        ...resolvePresetIndicators("15m"),
       },
       hidden: makeDefaultRecord(false),
       config: { ...DEFAULT_CONFIG },
@@ -368,9 +364,21 @@ export const useChartStore = create<ChartState>()(
       }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<ChartState>;
+        const tf = (p.timeframe ?? current.timeframe) as string;
+        // Siempre aplicar el preset EMA/SMA de la temporalidad guardada.
+        // El resto de indicadores (RSI, MACD, etc.) se preservan del estado guardado.
+        const preset = resolvePresetIndicators(tf);
+        const stored = (p.indicators ?? current.indicators) as Record<IndicatorKey, boolean>;
+        const indicators: Record<IndicatorKey, boolean> = {
+          ...stored,
+          ema9: preset.ema9, ema21: preset.ema21, ema20: preset.ema20,
+          ema50: preset.ema50, ema200: preset.ema200,
+          sma20: preset.sma20, sma50: preset.sma50, sma200: preset.sma200,
+        };
         return {
           ...current,
           ...p,
+          indicators,
           config: { ...current.config, ...(p.config ?? {}) },
           alertConfig: { ...current.alertConfig, ...(p.alertConfig ?? {}) },
         };
