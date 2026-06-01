@@ -1160,14 +1160,14 @@ export function PriceChart({ symbol, timeframe, usePreset = false }: Props) {
                   : "◆ NEUTRAL"}
               </span>
             </div>
-            {/* Barra de fuerza */}
+            {/* Barra de fuerza — 6 segmentos */}
             <div className="flex items-center gap-1">
-              {[-2, -1, 0, 1, 2].map((i) => {
+              {[-2, -1, 0, 1, 2, 3].map((i) => {
                 const filled =
                   trendResult.direction === "bull"
-                    ? trendResult.score >= i + 3
+                    ? trendResult.score >= i + 4
                     : trendResult.direction === "bear"
-                    ? trendResult.score <= i - 3
+                    ? trendResult.score <= i - 4
                     : false;
                 const color =
                   trendResult.direction === "bull" ? "#26a69a"
@@ -1176,7 +1176,7 @@ export function PriceChart({ symbol, timeframe, usePreset = false }: Props) {
                 return (
                   <div
                     key={i}
-                    style={{ backgroundColor: filled ? color : `${color}33`, width: 14, height: 6, borderRadius: 2 }}
+                    style={{ backgroundColor: filled ? color : `${color}33`, width: 12, height: 6, borderRadius: 2 }}
                   />
                 );
               })}
@@ -1189,6 +1189,7 @@ export function PriceChart({ symbol, timeframe, usePreset = false }: Props) {
                 { label: "EMA9/EMA21",   v: trendResult.signals.emaFastCross },
                 { label: "Supertrend",   v: trendResult.signals.supertrend },
                 { label: "MACD Hist",    v: trendResult.signals.macdHist },
+                { label: `RSI ${trendResult.rsiValue.toFixed(1)}`, v: trendResult.signals.rsiLevel },
               ].map(({ label, v }) => (
                 <div key={label} className="flex items-center gap-1">
                   <span style={{ color: v === 1 ? "#26a69a" : "#ef5350" }}>{v === 1 ? "▲" : "▼"}</span>

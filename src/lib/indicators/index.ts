@@ -528,6 +528,7 @@ export function candlePatterns(candles: Candle[]): SignalPoint[] {
 //  3. EMA9 vs EMA21 (cruce rápido)
 //  4. Supertrend dirección
 //  5. MACD histograma signo
+//  6. RSI(14) > 50 (momentum / agotamiento)
 
 export interface TrendSignals {
   vsEma20: 1 | -1;
@@ -535,12 +536,14 @@ export interface TrendSignals {
   emaFastCross: 1 | -1;
   supertrend: 1 | -1;
   macdHist: 1 | -1;
+  rsiLevel: 1 | -1;
 }
 
 export interface TrendMeterResult {
-  score: number;           // -5 a +5
+  score: number;           // -6 a +6
   direction: "bull" | "bear" | "neutral";
   signals: TrendSignals;
+  rsiValue: number;
 }
 
 export function trendMeter(candles: Candle[]): TrendMeterResult | null {
@@ -548,7 +551,7 @@ export function trendMeter(candles: Candle[]): TrendMeterResult | null {
 
   const close = candles[candles.length - 1].close;
 
-  // EMA20 y EMA50
+  // EMAs
   const ema20Val = ema(candles, 20).at(-1)?.value;
   const ema50Val = ema(candles, 50).at(-1)?.value;
   const ema9Val  = ema(candles, 9).at(-1)?.value;
@@ -564,14 +567,19 @@ export function trendMeter(candles: Candle[]): TrendMeterResult | null {
   const macdData = macd(candles, 12, 26, 9);
   const lastMACD = macdData.at(-1);
 
-  if (!lastST || !lastMACD) return null;
+  // RSI(14) — señal de agotamiento / momentum
+  const rsiData = rsi(candles, 14);
+  const lastRSI = rsiData.at(-1)?.value;
+
+  if (!lastST || !lastMACD || lastRSI === undefined) return null;
 
   const signals: TrendSignals = {
-    vsEma20:     close > ema20Val ? 1 : -1,
-    vsEma50:     close > ema50Val ? 1 : -1,
+    vsEma20:      close > ema20Val ? 1 : -1,
+    vsEma50:      close > ema50Val ? 1 : -1,
     emaFastCross: ema9Val > ema21Val ? 1 : -1,
-    supertrend:  lastST.direction,
-    macdHist:    lastMACD.histogram >= 0 ? 1 : -1,
+    supertrend:   lastST.direction,
+    macdHist:     lastMACD.histogram >= 0 ? 1 : -1,
+    rsiLevel:     lastRSI > 50 ? 1 : -1,
   };
 
   const score =
@@ -579,10 +587,12 @@ export function trendMeter(candles: Candle[]): TrendMeterResult | null {
     signals.vsEma50 +
     signals.emaFastCross +
     signals.supertrend +
-    signals.macdHist;
+    signals.macdHist +
+    signals.rsiLevel;
 
+  // Bull ≥ 4/6, Bear ≤ -4/6 — umbral más exigente con 6 señales
   const direction: TrendMeterResult["direction"] =
-    score >= 3 ? "bull" : score <= -3 ? "bear" : "neutral";
+    score >= 4 ? "bull" : score <= -4 ? "bear" : "neutral";
 
-  return { score, direction, signals };
+  return { score, direction, signals, rsiValue: lastRSI };
 }
