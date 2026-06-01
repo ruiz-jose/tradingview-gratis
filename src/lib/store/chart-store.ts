@@ -182,7 +182,7 @@ export function resolvePresetIndicators(tf: string): Record<IndicatorKey, boolea
     rsi: false, macd: false, volume: true,
     supertrend: false, bbands: false, vwap: false,
     stochrsi: false, adx: false, cvd: false, atr: false, chop: false,
-    bos: false, patterns: false, trendmeter: false,
+    bos: false, patterns: false, trendmeter: true,
   };
   const preset = TF_EMA_PRESETS[tf];
   if (!preset) return base;
@@ -374,6 +374,8 @@ export const useChartStore = create<ChartState>()(
           ema9: preset.ema9, ema21: preset.ema21, ema20: preset.ema20,
           ema50: preset.ema50, ema200: preset.ema200,
           sma20: preset.sma20, sma50: preset.sma50, sma200: preset.sma200,
+          trendmeter: true,
+          volume: true,
         };
         return {
           ...current,

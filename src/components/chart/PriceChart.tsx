@@ -49,6 +49,8 @@ import { TrendAlertToast } from "./TrendAlertToast";
 
 // Ordered list of subpane indicators (determines pane slot assignment)
 const SUBPANE_ORDER: IndicatorKey[] = ["rsi", "macd", "stochrsi", "adx", "cvd", "atr", "chop"];
+// Objeto estable para modo preset: referencia fija, evita re-renders infinitos
+const EMPTY_HIDDEN = {} as Record<IndicatorKey, boolean>;
 
 function getPaneIdx(key: IndicatorKey, indics: Record<IndicatorKey, boolean>): number {
   const pos = SUBPANE_ORDER.indexOf(key);
@@ -179,9 +181,7 @@ export function PriceChart({ symbol, timeframe, usePreset = false }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [usePreset, timeframe, storeIndicators],
   );
-  const hidden = usePreset
-    ? ({} as Record<IndicatorKey, boolean>)  // nada oculto en preset
-    : storeHidden;
+  const hidden = usePreset ? EMPTY_HIDDEN : storeHidden;
   const config         = useChartStore((s) => s.config);
   const alertConfig    = useChartStore((s) => s.alertConfig);
   const tool           = useChartStore((s) => s.tool);
