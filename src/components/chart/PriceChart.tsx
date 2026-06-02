@@ -45,6 +45,7 @@ import { IndicatorPill } from "./IndicatorPill";
 import { MeasureOverlay } from "./MeasureOverlay";
 import { useTelegramAlerts } from "@/hooks/useTelegramAlerts";
 import { useTrendAlerts } from "@/hooks/useTrendAlerts";
+import { useMtfShortSignal } from "@/hooks/useMtfShortSignal";
 import { TrendAlertToast } from "./TrendAlertToast";
 
 // Ordered list of subpane indicators (determines pane slot assignment)
@@ -208,6 +209,7 @@ export function PriceChart({ symbol, timeframe, usePreset = false }: Props) {
   const measureRef = useRef(measure); measureRef.current = measure;
 
   useTelegramAlerts(trendResult, symbol, timeframe, alertConfig);
+  useMtfShortSignal(symbol, alertConfig);
   const { activeAlerts, dismiss } = useTrendAlerts(trendResult, symbol, timeframe, alertConfig);
 
   function recomputePaneOffsets() {

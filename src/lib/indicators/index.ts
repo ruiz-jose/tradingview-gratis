@@ -520,6 +520,116 @@ export function candlePatterns(candles: Candle[]): SignalPoint[] {
   return out;
 }
 
+// ─── MTF Short Entry Signal ───────────────────────────────────────────────────
+// Detecta setup short cuando:
+//   1. Todas las HTF (1h, 4h, 1w, 1M) tienen trendMeter = "bear"
+//   2. En 15m: precio dentro del 2% de EMA50 o EMA200 (zona de resistencia)
+//   3. En 15m: vela de confirmación bajista (engulfing o shooting star)
+//   4. En 15m: RSI(14) > 35 — no sobrevendido (hay recorrido bajista)
+
+export interface ShortEntrySignal {
+  price: number;
+  stopLoss: number;             // 0.3% por encima del swing high reciente
+  resistanceLevel: number;
+  resistanceType: "ema50" | "ema200" | "both";
+  rsi15m: number;
+  confirmationPattern: "bearishEngulfing" | "shootingStar";
+  htfScores: Record<string, number>; // tf → score (-6 a +6)
+}
+
+export function detectShortEntry(
+  candles15m: Candle[],
+  candles1h: Candle[],
+  candles4h: Candle[],
+  candles1w: Candle[],
+  candles1M: Candle[],
+): ShortEntrySignal | null {
+  if (candles15m.length < 60) return null;
+
+  // ─── 1. Filtro HTF: todos deben ser bajistas ────────────────────────────────
+  const htfMap: Record<string, Candle[]> = {
+    "1h": candles1h,
+    "4h": candles4h,
+    "1w": candles1w,
+    "1M": candles1M,
+  };
+  const htfScores: Record<string, number> = {};
+  for (const [tf, candles] of Object.entries(htfMap)) {
+    if (candles.length < 50) return null;
+    const result = trendMeter(candles);
+    if (!result || result.direction !== "bear") return null;
+    htfScores[tf] = result.score;
+  }
+
+  // ─── 2. Zona de resistencia en 15m (EMA50 o EMA200) ────────────────────────
+  const close = candles15m.at(-1)!.close;
+  const ema50Val = ema(candles15m, 50).at(-1)?.value;
+  const ema200Val = ema(candles15m, 200).at(-1)?.value;
+  if (!ema50Val || !ema200Val) return null;
+
+  const nearEma50  = Math.abs(close - ema50Val)  / close < 0.02;
+  const nearEma200 = Math.abs(close - ema200Val) / close < 0.02;
+  if (!nearEma50 && !nearEma200) return null;
+
+  // ─── 3. RSI(14) no sobrevendido ─────────────────────────────────────────────
+  const rsi15mVal = rsi(candles15m, 14).at(-1)?.value;
+  if (rsi15mVal === undefined || rsi15mVal < 35) return null;
+
+  // ─── 4. Vela de confirmación bajista ────────────────────────────────────────
+  const len  = candles15m.length;
+  const curr = candles15m[len - 1];
+  const prev = candles15m[len - 2];
+  if (!curr || !prev) return null;
+
+  let pattern: ShortEntrySignal["confirmationPattern"] | null = null;
+
+  // Bearish engulfing
+  if (
+    prev.close > prev.open &&
+    curr.close < curr.open &&
+    curr.open  >= prev.close &&
+    curr.close <= prev.open
+  ) {
+    pattern = "bearishEngulfing";
+  }
+
+  // Shooting star
+  if (!pattern) {
+    const bodySize  = Math.abs(curr.close - curr.open);
+    const range     = curr.high - curr.low;
+    const upperWick = curr.high - Math.max(curr.open, curr.close);
+    const lowerWick = Math.min(curr.open, curr.close) - curr.low;
+    if (
+      range > 0 &&
+      bodySize  < range * 0.4 &&
+      upperWick > bodySize * 2 &&
+      lowerWick < bodySize * 0.6 &&
+      (curr.high - curr.close) / range > 0.55
+    ) {
+      pattern = "shootingStar";
+    }
+  }
+
+  if (!pattern) return null;
+
+  // ─── 5. Stop loss = 0.3% por encima del swing high de las últimas 15 velas ─
+  const swingHigh = Math.max(...candles15m.slice(-15).map((c) => c.high));
+
+  const resistanceType: ShortEntrySignal["resistanceType"] =
+    nearEma50 && nearEma200 ? "both" : nearEma50 ? "ema50" : "ema200";
+  const resistanceLevel = nearEma50 ? ema50Val : ema200Val;
+
+  return {
+    price: close,
+    stopLoss: swingHigh * 1.003,
+    resistanceLevel,
+    resistanceType,
+    rsi15m: rsi15mVal,
+    confirmationPattern: pattern,
+    htfScores,
+  };
+}
+
 // ─── Trend Meter ──────────────────────────────────────────────────────────────
 // Combina 5 señales para dar un veredicto alcista / bajista / neutral.
 // Cada señal devuelve +1 (alcista) o -1 (bajista).
