@@ -521,20 +521,35 @@ export function candlePatterns(candles: Candle[]): SignalPoint[] {
 }
 
 // ─── MTF Short Entry Signal ───────────────────────────────────────────────────
-// Detecta setup short cuando:
-//   1. Todas las HTF (1h, 4h, 1w, 1M) tienen trendMeter = "bear"
-//   2. En 15m: precio dentro del 2% de EMA50 o EMA200 (zona de resistencia)
-//   3. En 15m: vela de confirmación bajista (engulfing o shooting star)
-//   4. En 15m: RSI(14) > 35 — no sobrevendido (hay recorrido bajista)
+// Implementa la estrategia de retroceso multi-temporalidad:
+//
+//  1. FILTRO HTF: 1h, 4h, 1w, 1M todos bajistas (trendMeter)
+//  2. RETROCESO ACTIVO: precio en la mitad superior del rango de las últimas
+//     30 velas de 15m (confirma que hay un retroceso alcista en curso, no impulso)
+//  3. ZONA DE RESISTENCIA: EMA50, EMA200 en 15m, o el propio máximo del retroceso
+//  4. MÍNIMO 2 DE 3 CONFIRMACIONES:
+//     a) ChoCh — cierre bajo el último mínimo de estructura del retroceso
+//     b) RSI cross bajista — RSI superó 65 en los últimos 5 bars y ahora declina
+//     c) Patrón de vela — Bearish Engulfing o Shooting Star
 
 export interface ShortEntrySignal {
   price: number;
-  stopLoss: number;             // 0.3% por encima del swing high reciente
+  stopLoss: number;
+  tp1: number;                    // Mínimo del swing (inicio del retroceso)
+  tp2: number;                    // R:R 1:2 calculado
   resistanceLevel: number;
-  resistanceType: "ema50" | "ema200" | "both";
+  resistanceType: "ema50" | "ema200" | "both" | "pullbackHigh";
   rsi15m: number;
-  confirmationPattern: "bearishEngulfing" | "shootingStar";
-  htfScores: Record<string, number>; // tf → score (-6 a +6)
+  pullbackHighPrice: number;
+  pullbackLowPrice: number;
+  pullbackStructureLow: number | null;
+  confirmations: {
+    choch: boolean;
+    rsiOverboughtCross: boolean;
+    bearishPattern: boolean;
+    confirmationPattern?: "bearishEngulfing" | "shootingStar";
+  };
+  htfScores: Record<string, number>;
 }
 
 export function detectShortEntry(
@@ -561,40 +576,89 @@ export function detectShortEntry(
     htfScores[tf] = result.score;
   }
 
-  // ─── 2. Zona de resistencia en 15m (EMA50 o EMA200) ────────────────────────
-  const close = candles15m.at(-1)!.close;
-  const ema50Val = ema(candles15m, 50).at(-1)?.value;
-  const ema200Val = ema(candles15m, 200).at(-1)?.value;
-  if (!ema50Val || !ema200Val) return null;
-
-  const nearEma50  = Math.abs(close - ema50Val)  / close < 0.02;
-  const nearEma200 = Math.abs(close - ema200Val) / close < 0.02;
-  if (!nearEma50 && !nearEma200) return null;
-
-  // ─── 3. RSI(14) no sobrevendido ─────────────────────────────────────────────
-  const rsi15mVal = rsi(candles15m, 14).at(-1)?.value;
-  if (rsi15mVal === undefined || rsi15mVal < 35) return null;
-
-  // ─── 4. Vela de confirmación bajista ────────────────────────────────────────
+  // ─── 2. Detectar retroceso alcista activo en 15m ────────────────────────────
   const len  = candles15m.length;
   const curr = candles15m[len - 1];
   const prev = candles15m[len - 2];
   if (!curr || !prev) return null;
 
-  let pattern: ShortEntrySignal["confirmationPattern"] | null = null;
+  const last30      = candles15m.slice(-30);
+  const recentHigh  = Math.max(...last30.map((c) => c.high));
+  const recentLow   = Math.min(...last30.map((c) => c.low));
+  const rangeSize   = recentHigh > 0 ? (recentHigh - recentLow) / recentLow : 0;
 
-  // Bearish engulfing
+  // Rango mínimo del 0.8% (descarta mercado lateral sin impulso claro)
+  if (rangeSize < 0.008) return null;
+
+  // Precio debe estar en la mitad superior del rango: confirma que estamos en
+  // la zona alta del retroceso, no en medio de un impulso bajista
+  const midRange = recentLow + (recentHigh - recentLow) * 0.5;
+  if (curr.close < midRange) return null;
+
+  // ─── 3. Zona de resistencia ─────────────────────────────────────────────────
+  const close     = curr.close;
+  const ema50Val  = ema(candles15m, 50).at(-1)?.value;
+  const ema200Val = ema(candles15m, 200).at(-1)?.value;
+
+  const nearEma50  = ema50Val  ? Math.abs(close - ema50Val)  / close < 0.025 : false;
+  const nearEma200 = ema200Val ? Math.abs(close - ema200Val) / close < 0.025 : false;
+
+  let resistanceLevel: number;
+  let resistanceType: ShortEntrySignal["resistanceType"];
+  if (nearEma50 && nearEma200 && ema50Val && ema200Val) {
+    resistanceType  = "both";
+    resistanceLevel = (ema50Val + ema200Val) / 2;
+  } else if (nearEma50 && ema50Val) {
+    resistanceType  = "ema50";
+    resistanceLevel = ema50Val;
+  } else if (nearEma200 && ema200Val) {
+    resistanceType  = "ema200";
+    resistanceLevel = ema200Val;
+  } else {
+    // El máximo del propio retroceso actúa como resistencia dinámica
+    resistanceType  = "pullbackHigh";
+    resistanceLevel = recentHigh;
+  }
+
+  // ─── 4a. Confirmación: RSI overbought cross ──────────────────────────────────
+  // El retroceso llevó el RSI a >65; ahora declina → agotamiento alcista
+  const rsiData = rsi(candles15m, 14);
+  const lastRsi = rsiData.at(-1)?.value;
+  const prevRsi = rsiData.at(-2)?.value;
+  if (lastRsi === undefined || prevRsi === undefined) return null;
+
+  const rsiPeak5          = Math.max(...rsiData.slice(-5).map((p) => p.value));
+  const rsiOverboughtCross = rsiPeak5 > 65 && lastRsi < prevRsi;
+
+  // ─── 4b. Confirmación: ChoCh (Cambio de Carácter) ───────────────────────────
+  // Busca el último mínimo de estructura dentro del retroceso (las últimas 20
+  // velas, por encima del mínimo absoluto reciente). Un cierre por debajo de ese
+  // mínimo indica que el retroceso rompió estructura → señal de inversión.
+  let pullbackStructureLow: number | null = null;
+  const pullbackZone = candles15m.slice(-20);
+  for (let i = 1; i < pullbackZone.length - 1; i++) {
+    const p = pullbackZone[i - 1];
+    const c = pullbackZone[i];
+    const n = pullbackZone[i + 1];
+    if (c.low < p.low && c.low < n.low && c.low > recentLow * 1.001) {
+      pullbackStructureLow = c.low;
+    }
+  }
+  const choch = pullbackStructureLow !== null && close < pullbackStructureLow;
+
+  // ─── 4c. Confirmación: patrón de vela bajista ────────────────────────────────
+  let confirmationPattern: "bearishEngulfing" | "shootingStar" | undefined;
+
   if (
     prev.close > prev.open &&
     curr.close < curr.open &&
     curr.open  >= prev.close &&
     curr.close <= prev.open
   ) {
-    pattern = "bearishEngulfing";
+    confirmationPattern = "bearishEngulfing";
   }
 
-  // Shooting star
-  if (!pattern) {
+  if (!confirmationPattern) {
     const bodySize  = Math.abs(curr.close - curr.open);
     const range     = curr.high - curr.low;
     const upperWick = curr.high - Math.max(curr.open, curr.close);
@@ -606,26 +670,34 @@ export function detectShortEntry(
       lowerWick < bodySize * 0.6 &&
       (curr.high - curr.close) / range > 0.55
     ) {
-      pattern = "shootingStar";
+      confirmationPattern = "shootingStar";
     }
   }
 
-  if (!pattern) return null;
+  const bearishPattern = confirmationPattern !== undefined;
 
-  // ─── 5. Stop loss = 0.3% por encima del swing high de las últimas 15 velas ─
-  const swingHigh = Math.max(...candles15m.slice(-15).map((c) => c.high));
+  // ─── 5. Requiere mínimo 2 de 3 confirmaciones ────────────────────────────────
+  const confirmationCount = [choch, rsiOverboughtCross, bearishPattern].filter(Boolean).length;
+  if (confirmationCount < 2) return null;
 
-  const resistanceType: ShortEntrySignal["resistanceType"] =
-    nearEma50 && nearEma200 ? "both" : nearEma50 ? "ema50" : "ema200";
-  const resistanceLevel = nearEma50 ? ema50Val : ema200Val;
+  // ─── 6. Entry, Stop Loss y Take Profit ──────────────────────────────────────
+  const stopLoss = recentHigh * 1.003;              // 0.3% por encima del máximo del retroceso
+  const tp1      = recentLow;                        // Mínimo del swing (inicio del retroceso)
+  const risk     = stopLoss - close;
+  const tp2      = risk > 0 ? close - risk * 2 : tp1; // R:R 1:2
 
   return {
     price: close,
-    stopLoss: swingHigh * 1.003,
+    stopLoss,
+    tp1,
+    tp2,
     resistanceLevel,
     resistanceType,
-    rsi15m: rsi15mVal,
-    confirmationPattern: pattern,
+    rsi15m: lastRsi,
+    pullbackHighPrice: recentHigh,
+    pullbackLowPrice:  recentLow,
+    pullbackStructureLow,
+    confirmations: { choch, rsiOverboughtCross, bearishPattern, confirmationPattern },
     htfScores,
   };
 }
