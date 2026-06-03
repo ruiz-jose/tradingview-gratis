@@ -26,7 +26,8 @@ export type IndicatorKey =
   | "chop"
   | "bos"
   | "patterns"
-  | "trendmeter";
+  | "trendmeter"
+  | "trendcross";
 
 export type DrawingTool = "cursor" | "hline" | "measure" | "eraser";
 
@@ -172,6 +173,7 @@ export const INDICATOR_COLORS: Record<IndicatorKey, string> = {
   bos: "#26a69a",
   patterns: "#ffb74d",
   trendmeter: "#2962ff",
+  trendcross: "#e040fb",
 };
 
 /** Devuelve los indicadores activos según el preset de temporalidad (para multi-panel). */
@@ -182,7 +184,7 @@ export function resolvePresetIndicators(tf: string): Record<IndicatorKey, boolea
     rsi: false, macd: false, volume: true,
     supertrend: false, bbands: false, vwap: false,
     stochrsi: false, adx: false, cvd: false, atr: false, chop: false,
-    bos: false, patterns: false, trendmeter: true,
+    bos: false, patterns: false, trendmeter: true, trendcross: false,
   };
   const preset = TF_EMA_PRESETS[tf];
   if (!preset) return base;
@@ -211,7 +213,7 @@ function makeDefaultRecord<T>(val: T): Record<IndicatorKey, T> {
     rsi: val, macd: val, volume: val,
     supertrend: val, bbands: val, vwap: val,
     stochrsi: val, adx: val, cvd: val, atr: val, chop: val,
-    bos: val, patterns: val, trendmeter: val,
+    bos: val, patterns: val, trendmeter: val, trendcross: val,
   };
 }
 

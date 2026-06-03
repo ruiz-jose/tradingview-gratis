@@ -31,6 +31,7 @@ import {
   bos,
   candlePatterns,
   trendMeter,
+  trendMeterSeries,
   type TrendMeterResult,
 } from "@/lib/indicators";
 import type { Candle, Timeframe } from "@/lib/binance/types";
@@ -591,7 +592,7 @@ export function PriceChart({ symbol, timeframe, usePreset = false }: Props) {
   useEffect(() => { updateCVD(); }, [config.cvdEmaLen]);
   useEffect(() => { updateATR(); }, [config.atrLen]);
   useEffect(() => { updateChop(); }, [config.chopLen]);
-  useEffect(() => { updateSignalMarkers(); }, [indicators.bos, indicators.patterns, config.bosLen]);
+  useEffect(() => { updateSignalMarkers(); }, [indicators.bos, indicators.patterns, indicators.trendcross, config.bosLen]);
   useEffect(() => {
     updateTrendMeter();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -848,6 +849,28 @@ export function PriceChart({ symbol, timeframe, usePreset = false }: Props) {
       }
     }
 
+    if (indics.trendcross && c.length >= 50) {
+      const series = trendMeterSeries(c);
+      let prevDir: "bull" | "bear" | "neutral" | null = null;
+      for (let i = 0; i < series.length; i++) {
+        const pt = series[i];
+        if (!pt) { prevDir = null; continue; }
+        if (prevDir !== null && prevDir !== pt.direction) {
+          // Cambio de tendencia confirmado
+          const isBull = pt.direction === "bull";
+          const isBear = pt.direction === "bear";
+          markers.push({
+            time: c[i].time as UTCTimestamp,
+            position: isBull ? "belowBar" : isBear ? "aboveBar" : (prevDir === "bear" ? "belowBar" : "aboveBar"),
+            color: isBull ? TV.green : isBear ? TV.red : TV.yellow,
+            shape: "circle",
+            text: "✕",
+          });
+        }
+        prevDir = pt.direction;
+      }
+    }
+
     // Sort by time (required by lightweight-charts)
     markers.sort((a, b) => (a.time as number) - (b.time as number));
     markersRef.current.setMarkers(markers);
@@ -1068,6 +1091,9 @@ export function PriceChart({ symbol, timeframe, usePreset = false }: Props) {
           )}
           {indicators.patterns && (
             <IndicatorPill name="Patrones" value={undefined} color={INDICATOR_COLORS.patterns} hidden={hidden.patterns} onToggleHide={() => toggleHidden("patterns")} onSettings={() => setSettingsTarget("patterns")} onRemove={() => removeIndicator("patterns")} />
+          )}
+          {indicators.trendcross && (
+            <IndicatorPill name="Cambio tendencia ✕" value={undefined} color={INDICATOR_COLORS.trendcross} hidden={hidden.trendcross} onToggleHide={() => toggleHidden("trendcross")} onSettings={() => setSettingsTarget("trendcross")} onRemove={() => removeIndicator("trendcross")} />
           )}
         </div>
       </div>
