@@ -5,6 +5,36 @@ import { fetchKlines } from "@/lib/binance/rest";
 import { detectShortEntry, type ShortEntrySignal } from "@/lib/indicators";
 import type { AlertConfig } from "@/lib/store/chart-store";
 
+function playAlertSound() {
+  try {
+    const ctx = new AudioContext();
+    const freqs = [659, 554, 440]; // descendente = bear/short
+    freqs.forEach((freq, i) => {
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = freq;
+      osc.type = "sine";
+      const t = ctx.currentTime + i * 0.18;
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.18, t + 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+      osc.start(t);
+      osc.stop(t + 0.35);
+    });
+  } catch { /* AudioContext bloqueado */ }
+}
+
+function fireBrowserNotification(symbol: string, signal: ShortEntrySignal) {
+  if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+  new Notification(`📉 SHORT MTF — ${symbol}`, {
+    body: `Entrada: $${signal.price.toFixed(2)} | SL: $${signal.stopLoss.toFixed(2)} | TP2: $${signal.tp2.toFixed(2)}`,
+    tag: `short-${symbol}`,
+    silent: true,
+  });
+}
+
 // Comprueba al inicio y cada vez que cierra una vela de 15m
 const CHECK_INTERVAL_MS = 15 * 60_000;
 // Mínimo 4h entre alertas para el mismo símbolo (evita spam)
@@ -20,7 +50,7 @@ export function useMtfShortSignal(symbol: string, config: AlertConfig) {
     lastSignalRef.current = 0;
 
     async function check() {
-      if (!alertsEnabled || !telegramEnabled) return;
+      if (!alertsEnabled) return;
       if (Date.now() - lastSignalRef.current < SIGNAL_COOLDOWN_MS) return;
 
       const results = await Promise.all([
@@ -37,7 +67,10 @@ export function useMtfShortSignal(symbol: string, config: AlertConfig) {
       if (!signal) return;
 
       lastSignalRef.current = Date.now();
-      void sendShortAlert(signal, symbol);
+
+      if (config.sound)   playAlertSound();
+      if (config.browser) fireBrowserNotification(symbol, signal);
+      if (telegramEnabled) void sendShortAlert(signal, symbol);
     }
 
     void check();
