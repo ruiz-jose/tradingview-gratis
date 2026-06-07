@@ -8,7 +8,13 @@
     "start": "next start",
     "lint": "eslint",
     "check-trend": "node scripts/check-trend.mjs",
-    "backtest": "node scripts/backtest.mjs"
+    "backtest": "node scripts/backtest.mjs",
+    "backtest:mtf": "node scripts/backtest-mtf-short.mjs",
+    "validate:mc": "node scripts/validate-monte-carlo.mjs",
+    "validate:wf": "node scripts/validate-walk-forward.mjs",
+    "validate:ms": "node scripts/validate-multi-symbol.mjs",
+    "validate:sens": "node scripts/validate-sensitivity.mjs",
+    "validate:all": "node scripts/validate-all.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",

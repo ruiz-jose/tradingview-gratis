@@ -39,6 +39,7 @@ const TITLES: Record<IndicatorKey, string> = {
   bos: "Break of Structure",
   patterns: "Patrones de vela",
   trendmeter: "Trend Meter",
+  trendcross: "Cambio de tendencia ✕",
 };
 
 export function IndicatorSettingsDialog() {

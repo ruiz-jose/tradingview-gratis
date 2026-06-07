@@ -49,6 +49,7 @@ const ENTRIES: Entry[] = [
   { key: "bos",        group: "Señales", label: (c) => `BOS (${c.bosLen})` },
   { key: "patterns",   group: "Señales", label: () => "Patrones de vela" },
   { key: "trendmeter", group: "Señales", label: () => "Trend Meter (Alcista/Bajista/Neutral)" },
+  { key: "trendcross", group: "Señales", label: () => "Cambio de tendencia ✕" },
 ];
 
 export function IndicatorMenu() {

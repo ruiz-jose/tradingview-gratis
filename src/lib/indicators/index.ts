@@ -708,6 +708,68 @@ export function detectShortEntry(
   };
 }
 
+// ─── Trend Meter Series (batch) ───────────────────────────────────────────────
+
+export interface TrendMeterSeriesPoint {
+  time: number;
+  score: number;
+  direction: "bull" | "bear" | "neutral";
+}
+
+/**
+ * Calcula la dirección del TrendMeter para CADA vela del array.
+ * Usa los mismos parámetros fijos que trendMeter() (EMA 20/50/9/21,
+ * Supertrend 10/3, MACD 12/26/9, RSI 14).
+ * Retorna null donde no hay suficientes datos para calcular todos los indicadores.
+ */
+export function trendMeterSeries(candles: Candle[]): (TrendMeterSeriesPoint | null)[] {
+  if (candles.length < 50) return candles.map(() => null);
+
+  const e20 = ema(candles, 20);
+  const e50 = ema(candles, 50);
+  const e9  = ema(candles, 9);
+  const e21 = ema(candles, 21);
+  const st  = supertrend(candles, 10, 3);
+  const mh  = macd(candles, 12, 26, 9);
+  const rs  = rsi(candles, 14);
+
+  const e20Map = new Map(e20.map(p => [p.time, p.value] as [number, number]));
+  const e50Map = new Map(e50.map(p => [p.time, p.value] as [number, number]));
+  const e9Map  = new Map(e9.map(p => [p.time, p.value] as [number, number]));
+  const e21Map = new Map(e21.map(p => [p.time, p.value] as [number, number]));
+  const stMap  = new Map(st.map(p => [p.time, p.direction] as [number, 1 | -1]));
+  const mhMap  = new Map(mh.map(p => [p.time, p.histogram] as [number, number]));
+  const rsMap  = new Map(rs.map(p => [p.time, p.value] as [number, number]));
+
+  return candles.map(c => {
+    const v20 = e20Map.get(c.time);
+    const v50 = e50Map.get(c.time);
+    const v9  = e9Map.get(c.time);
+    const v21 = e21Map.get(c.time);
+    const vst = stMap.get(c.time);
+    const vmh = mhMap.get(c.time);
+    const vrs = rsMap.get(c.time);
+
+    if (v20 === undefined || v50 === undefined || v9  === undefined ||
+        v21 === undefined || vst === undefined || vmh === undefined || vrs === undefined) {
+      return null;
+    }
+
+    const score =
+      (c.close > v20 ? 1 : -1) +
+      (c.close > v50 ? 1 : -1) +
+      (v9 > v21      ? 1 : -1) +
+      vst +
+      (vmh >= 0      ? 1 : -1) +
+      (vrs > 50      ? 1 : -1);
+
+    const direction: "bull" | "bear" | "neutral" =
+      score >= 4 ? "bull" : score <= -4 ? "bear" : "neutral";
+
+    return { time: c.time, score, direction };
+  });
+}
+
 // ─── Trend Meter ──────────────────────────────────────────────────────────────
 // Combina 5 señales para dar un veredicto alcista / bajista / neutral.
 // Cada señal devuelve +1 (alcista) o -1 (bajista).
