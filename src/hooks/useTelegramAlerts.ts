@@ -37,25 +37,26 @@ export function useTelegramAlerts(
 ) {
   const prevDirectionRef = useRef<TrendMeterResult["direction"] | null>(null);
   const lastAlertRef = useRef<number>(0);
-  const configRef = useRef(config);
-  configRef.current = config;
+  useEffect(() => {
+    prevDirectionRef.current = null;
+    lastAlertRef.current = 0;
+  }, [symbol, timeframe]);
 
   useEffect(() => {
     if (!trendResult) return;
 
     const { direction, score } = trendResult;
-    const cfg = configRef.current;
     const prev = prevDirectionRef.current;
 
     // Solo alerta si cambia de dirección (no en neutral→neutral, etc.)
     const directionChanged = prev !== null && direction !== prev;
     const isActionable = direction === "bull" || direction === "bear";
-    const isStrong = Math.abs(score) >= cfg.minScore;
+    const isStrong = Math.abs(score) >= config.minScore;
 
     prevDirectionRef.current = direction;
 
     // Skip if alerts master switch or Telegram toggle is off
-    if (!cfg.enabled || !cfg.telegram) return;
+    if (!config.enabled || !config.telegram) return;
     // Skip if direction did not change or is not actionable
     if (!directionChanged || !isActionable) return;
     // Skip if trend is not strong enough
@@ -73,12 +74,13 @@ export function useTelegramAlerts(
       `• Cruce EMA rápido: ${signals.emaFastCross === 1 ? "✅" : "❌"}`,
       `• Supertrend: ${signals.supertrend === 1 ? "✅" : "❌"}`,
       `• MACD histograma: ${signals.macdHist === 1 ? "✅" : "❌"}`,
+      `• RSI > 50: ${signals.rsiLevel === 1 ? "✅" : "❌"}`,
     ].join("\n");
 
     const message =
       `<b>📊 Cambio de Tendencia Detectado</b>\n\n` +
       `Par: <b>${symbol}</b> | Timeframe: <b>${timeframe}</b>\n` +
-      `Tendencia: <b>${label}</b> (score ${score > 0 ? "+" : ""}${score}/5)\n\n` +
+      `Tendencia: <b>${label}</b> (score ${score > 0 ? "+" : ""}${score}/6)\n\n` +
       `<b>Señales:</b>\n${sigLines}`;
 
     fetch("/api/telegram", {
@@ -88,5 +90,5 @@ export function useTelegramAlerts(
     }).catch(() => {
       // Silencioso — no interrumpir la UI si falla la alerta
     });
-  }, [trendResult, symbol, timeframe]);
+  }, [trendResult, symbol, timeframe, config]);
 }

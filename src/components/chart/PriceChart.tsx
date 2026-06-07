@@ -623,7 +623,9 @@ export function PriceChart({ symbol, timeframe, usePreset = false }: Props) {
     if (containerRef.current) {
       containerRef.current.style.cursor = tool === "hline" || tool === "measure" ? "crosshair" : "";
     }
-    if (tool !== "measure") setMeasure(INITIAL_MEASURE);
+    if (tool === "measure") return;
+    const id = window.setTimeout(() => setMeasure(INITIAL_MEASURE), 0);
+    return () => window.clearTimeout(id);
   }, [tool]);
 
   // ── Update functions ──────────────────────────────────────────────────────
@@ -807,7 +809,7 @@ export function PriceChart({ symbol, timeframe, usePreset = false }: Props) {
   }
 
   function updateTrendMeter() {
-    const c = candlesRef.current;
+    const c = candlesRef.current.filter((candle) => candle.isFinal !== false);
     if (c.length === 0 || !indicatorsRef.current.trendmeter) {
       setTrendResult(null);
       return;

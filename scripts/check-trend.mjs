@@ -8,7 +8,7 @@
  *   BINANCE_SYMBOL          (default: BTCUSDT)
  *   ENTRY_TIMEFRAME         (default: 15m)  — timeframe que genera la señal
  *   CONTEXT_TIMEFRAME       (default: 1h)   — timeframe de confirmación
- *   MIN_SCORE               (default: 4)    — mínimo de señales alineadas (3-5)
+ *   MIN_SCORE               (default: 4)    — mínimo de señales alineadas (4-6)
  *   COOLDOWN_MINUTES        (default: 60)   — minutos mínimos entre alertas
  *   TELEGRAM_BOT_TOKEN      required for alerts
  *   TELEGRAM_CHAT_ID        required for alerts
@@ -119,6 +119,31 @@ function macdIndicator(candles, fast = 12, slow = 26, signal = 9) {
   return out;
 }
 
+function rsiIndicator(candles, period = 14) {
+  if (candles.length <= period) return [];
+  let gain = 0;
+  let loss = 0;
+  for (let i = 1; i <= period; i++) {
+    const diff = candles[i].close - candles[i - 1].close;
+    if (diff >= 0) gain += diff;
+    else loss -= diff;
+  }
+  gain /= period;
+  loss /= period;
+  let rs = loss === 0 ? 100 : gain / loss;
+  const out = [{ time: candles[period].time, value: 100 - 100 / (1 + rs) }];
+  for (let i = period + 1; i < candles.length; i++) {
+    const diff = candles[i].close - candles[i - 1].close;
+    const g = diff > 0 ? diff : 0;
+    const l = diff < 0 ? -diff : 0;
+    gain = (gain * (period - 1) + g) / period;
+    loss = (loss * (period - 1) + l) / period;
+    rs = loss === 0 ? 100 : gain / loss;
+    out.push({ time: candles[i].time, value: 100 - 100 / (1 + rs) });
+  }
+  return out;
+}
+
 function trendMeter(candles) {
   if (candles.length < 50) return null;
   const close    = candles[candles.length - 1].close;
@@ -129,17 +154,19 @@ function trendMeter(candles) {
   if (!ema20Val || !ema50Val || !ema9Val || !ema21Val) return null;
   const lastST   = supertrendIndicator(candles, 10, 3).at(-1);
   const lastMACD = macdIndicator(candles, 12, 26, 9).at(-1);
-  if (!lastST || !lastMACD) return null;
+  const lastRSI  = rsiIndicator(candles, 14).at(-1)?.value;
+  if (!lastST || !lastMACD || lastRSI === undefined) return null;
   const signals = {
     vsEma20:      close > ema20Val ? 1 : -1,
     vsEma50:      close > ema50Val ? 1 : -1,
     emaFastCross: ema9Val > ema21Val ? 1 : -1,
     supertrend:   lastST.direction,
     macdHist:     lastMACD.histogram >= 0 ? 1 : -1,
+    rsiLevel:     lastRSI > 50 ? 1 : -1,
   };
-  const score = signals.vsEma20 + signals.vsEma50 + signals.emaFastCross + signals.supertrend + signals.macdHist;
-  const direction = score >= 3 ? 'bull' : score <= -3 ? 'bear' : 'neutral';
-  return { score, direction, signals };
+  const score = signals.vsEma20 + signals.vsEma50 + signals.emaFastCross + signals.supertrend + signals.macdHist + signals.rsiLevel;
+  const direction = score >= 4 ? 'bull' : score <= -4 ? 'bear' : 'neutral';
+  return { score, direction, signals, rsiValue: lastRSI };
 }
 
 // ── Market data providers ─────────────────────────────────────────────────────
@@ -296,8 +323,11 @@ async function main() {
     process.exit(0);
   }
 
-  const entryResult  = trendMeter(entryCandlesRaw);
-  const contextResult = trendMeter(contextCandlesRaw);
+  const entryCandles = entryCandlesRaw.slice(0, -1);
+  const contextCandles = contextCandlesRaw.slice(0, -1);
+
+  const entryResult  = trendMeter(entryCandles);
+  const contextResult = trendMeter(contextCandles);
 
   if (!entryResult) {
     console.log('[check-trend] Datos insuficientes en entry TF — saltando');
@@ -363,13 +393,14 @@ async function main() {
     `• Cruce EMA rápido:  ${signals.emaFastCross === 1 ? '✅' : '❌'}`,
     `• Supertrend:        ${signals.supertrend   === 1 ? '✅' : '❌'}`,
     `• MACD histograma:   ${signals.macdHist     === 1 ? '✅' : '❌'}`,
+    `• RSI > 50:          ${signals.rsiLevel     === 1 ? '✅' : '❌'}`,
   ].join('\n');
 
   const message =
     `<b>📊 Cambio de Tendencia Detectado</b>\n\n` +
     `Par: <b>${SYMBOL}</b>\n` +
-    `Señal (${ENTRY_TF}):    <b>${LABELS[direction]}</b>  (${score > 0 ? '+' : ''}${score}/5)\n` +
-    `Contexto (${CONTEXT_TF}): <b>${LABELS[contextDirection]}</b>  (${contextScore > 0 ? '+' : ''}${contextScore}/5)\n\n` +
+    `Señal (${ENTRY_TF}):    <b>${LABELS[direction]}</b>  (${score > 0 ? '+' : ''}${score}/6)\n` +
+    `Contexto (${CONTEXT_TF}): <b>${LABELS[contextDirection]}</b>  (${contextScore > 0 ? '+' : ''}${contextScore}/6)\n\n` +
     `<b>Señales (${ENTRY_TF}):</b>\n${sigLines}`;
 
   await sendTelegram(TOKEN, CHAT_ID, message);

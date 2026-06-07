@@ -18,7 +18,10 @@ export default function HomePage() {
   const [watchlistOpen, setWatchlistOpen] = useState(false);
 
   useEffect(() => {
-    if (window.innerWidth >= 768) setWatchlistOpen(true);
+    const id = window.setTimeout(() => {
+      if (window.innerWidth >= 768) setWatchlistOpen(true);
+    }, 0);
+    return () => window.clearTimeout(id);
   }, []);
 
   return (

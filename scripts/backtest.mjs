@@ -39,6 +39,31 @@ function emaArr(candles, period) {
   return out;
 }
 
+function rsiArr(candles, period = 14) {
+  const out = new Array(candles.length).fill(null);
+  if (candles.length <= period) return out;
+  let gain = 0, loss = 0;
+  for (let i = 1; i <= period; i++) {
+    const diff = candles[i].close - candles[i - 1].close;
+    if (diff >= 0) gain += diff;
+    else loss -= diff;
+  }
+  gain /= period;
+  loss /= period;
+  let rs = loss === 0 ? 100 : gain / loss;
+  out[period] = 100 - 100 / (1 + rs);
+  for (let i = period + 1; i < candles.length; i++) {
+    const diff = candles[i].close - candles[i - 1].close;
+    const g = diff > 0 ? diff : 0;
+    const l = diff < 0 ? -diff : 0;
+    gain = (gain * (period - 1) + g) / period;
+    loss = (loss * (period - 1) + l) / period;
+    rs = loss === 0 ? 100 : gain / loss;
+    out[i] = 100 - 100 / (1 + rs);
+  }
+  return out;
+}
+
 function atrArr(candles, period) {
   const out = new Array(candles.length).fill(null);
   if (candles.length <= period) return out;
@@ -111,17 +136,20 @@ function computeTrendMeters(candles) {
   const ema21 = emaArr(candles, 21);
   const stDir = supertrendDirArr(candles, 10, 3.0);
   const macdH = macdHistArr(candles, 12, 26, 9);
+  const rsi14 = rsiArr(candles, 14);
 
   return candles.map((c, i) => {
     if (ema20[i] === null || ema50[i] === null || ema9[i] === null ||
-        ema21[i] === null || stDir[i] === null || macdH[i] === null) return null;
+        ema21[i] === null || stDir[i] === null || macdH[i] === null ||
+        rsi14[i] === null) return null;
     const score =
       (c.close > ema20[i] ? 1 : -1) +
       (c.close > ema50[i] ? 1 : -1) +
       (ema9[i] > ema21[i] ? 1 : -1) +
       stDir[i] +
-      (macdH[i] >= 0 ? 1 : -1);
-    return { score, direction: score >= 3 ? 'bull' : score <= -3 ? 'bear' : 'neutral' };
+      (macdH[i] >= 0 ? 1 : -1) +
+      (rsi14[i] > 50 ? 1 : -1);
+    return { score, direction: score >= 4 ? 'bull' : score <= -4 ? 'bear' : 'neutral' };
   });
 }
 
@@ -368,7 +396,7 @@ function report(trades, candles) {
 async function main() {
   console.log(`\n[backtest] ${SYMBOL} ${TIMEFRAME} | ${N_CANDLES} velas | fee ${FEES_PCT}%/lado\n`);
 
-  const candles = await fetchCandlesPaginated(SYMBOL, TIMEFRAME, N_CANDLES);
+  const candles = (await fetchCandlesPaginated(SYMBOL, TIMEFRAME, N_CANDLES)).slice(0, -1);
   if (candles.length < WARMUP + 10) {
     console.error('[backtest] No hay suficientes datos. Intentá con menos velas o un símbolo más líquido.');
     process.exit(1);

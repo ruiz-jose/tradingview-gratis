@@ -12,16 +12,15 @@ const SIGNAL_COOLDOWN_MS = 4 * 60 * 60_000;
 
 export function useMtfShortSignal(symbol: string, config: AlertConfig) {
   const lastSignalRef = useRef<number>(0);
-  const configRef = useRef(config);
-  configRef.current = config;
+  const alertsEnabled = config.enabled;
+  const telegramEnabled = config.telegram;
 
   useEffect(() => {
     // Al cambiar de símbolo, resetear cooldown para dar señal fresca si aplica
     lastSignalRef.current = 0;
 
     async function check() {
-      const cfg = configRef.current;
-      if (!cfg.enabled || !cfg.telegram) return;
+      if (!alertsEnabled || !telegramEnabled) return;
       if (Date.now() - lastSignalRef.current < SIGNAL_COOLDOWN_MS) return;
 
       const results = await Promise.all([
@@ -44,7 +43,7 @@ export function useMtfShortSignal(symbol: string, config: AlertConfig) {
     void check();
     const id = setInterval(() => void check(), CHECK_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [symbol]);
+  }, [symbol, alertsEnabled, telegramEnabled]);
 }
 
 async function sendShortAlert(signal: ShortEntrySignal, symbol: string): Promise<void> {

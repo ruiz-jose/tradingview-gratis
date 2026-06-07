@@ -18,7 +18,7 @@ export async function fetchKlines(
     low: parseFloat(k[3] as string),
     close: parseFloat(k[4] as string),
     volume: parseFloat(k[5] as string),
-    isFinal: true,
+    isFinal: Number(k[6]) <= Date.now(),
   }));
 }
 

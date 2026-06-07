@@ -22,7 +22,7 @@ export interface Candle {
   low: number;
   close: number;
   volume: number;
-  isFinal?: boolean; // true when kline closes (WS only)
+  isFinal?: boolean; // true when kline closes
 }
 
 export interface Ticker24h {

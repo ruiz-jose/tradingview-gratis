@@ -559,6 +559,12 @@ export function detectShortEntry(
   candles1w: Candle[],
   candles1M: Candle[],
 ): ShortEntrySignal | null {
+  candles15m = candles15m.filter((c) => c.isFinal !== false);
+  candles1h = candles1h.filter((c) => c.isFinal !== false);
+  candles4h = candles4h.filter((c) => c.isFinal !== false);
+  candles1w = candles1w.filter((c) => c.isFinal !== false);
+  candles1M = candles1M.filter((c) => c.isFinal !== false);
+
   if (candles15m.length < 60) return null;
 
   // ─── 1. Filtro HTF: todos deben ser bajistas ────────────────────────────────

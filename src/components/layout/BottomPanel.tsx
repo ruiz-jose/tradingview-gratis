@@ -10,10 +10,10 @@ import { cn } from "@/lib/utils";
 export function BottomPanel() {
   const symbol = useChartStore((s) => s.symbol);
   const [t, setT] = useState<Ticker24h | null>(null);
+  const currentTicker = t?.symbol === symbol ? t : null;
 
   useEffect(() => {
     let cancelled = false;
-    setT(null);
     const load = () => {
       fetchTicker24h(symbol)
         .then((x) => {
@@ -36,29 +36,29 @@ export function BottomPanel() {
       <Stat label="Símbolo" value={symbol} />
       <Stat
         label="24h Cambio"
-        value={t ? formatPct(t.priceChangePercent) : "—"}
-        valueClass={t ? upClass(t.priceChangePercent) : ""}
+        value={currentTicker ? formatPct(currentTicker.priceChangePercent) : "—"}
+        valueClass={currentTicker ? upClass(currentTicker.priceChangePercent) : ""}
       />
       <Stat
         label="24h Alto"
-        value={t ? formatPrice(t.highPrice) : "—"}
+        value={currentTicker ? formatPrice(currentTicker.highPrice) : "—"}
         valueClass="text-tv-green"
         className="hidden sm:flex"
       />
       <Stat
         label="24h Bajo"
-        value={t ? formatPrice(t.lowPrice) : "—"}
+        value={currentTicker ? formatPrice(currentTicker.lowPrice) : "—"}
         valueClass="text-tv-red"
         className="hidden sm:flex"
       />
       <Stat
         label="24h Vol (base)"
-        value={t ? formatVolume(t.volume) : "—"}
+        value={currentTicker ? formatVolume(currentTicker.volume) : "—"}
         className="hidden md:flex"
       />
       <Stat
         label="24h Vol (USDT)"
-        value={t ? formatVolume(t.quoteVolume) : "—"}
+        value={currentTicker ? formatVolume(currentTicker.quoteVolume) : "—"}
         className="hidden md:flex"
       />
       <div className="ml-auto flex shrink-0 items-center gap-2 text-[10px] text-tv-text-dim">

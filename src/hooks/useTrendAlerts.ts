@@ -64,7 +64,7 @@ function fireBrowserNotification(alert: TrendAlert) {
   new Notification(
     `${bull ? "📈" : "📉"} ${alert.symbol} — Tendencia ${bull ? "ALCISTA" : "BAJISTA"}`,
     {
-      body: `Timeframe: ${alert.timeframe} | Fuerza: ${Math.abs(alert.score)}/5 señales alineadas`,
+      body: `Timeframe: ${alert.timeframe} | Fuerza: ${Math.abs(alert.score)}/6 señales alineadas`,
       tag: `trend-${alert.symbol}`,
       silent: true,
     },
@@ -79,10 +79,6 @@ export function useTrendAlerts(
 ) {
   const prevDirectionRef = useRef<TrendMeterResult["direction"] | null>(null);
   const lastAlertTimeRef = useRef<number>(0);
-  // Use ref so config changes don't re-trigger the effect on every render
-  const configRef = useRef(config);
-  configRef.current = config;
-
   const [activeAlerts, setActiveAlerts] = useState<TrendAlert[]>([]);
 
   const dismiss = useCallback((id: string) => {
@@ -90,18 +86,22 @@ export function useTrendAlerts(
   }, []);
 
   useEffect(() => {
+    prevDirectionRef.current = null;
+    lastAlertTimeRef.current = 0;
+  }, [symbol, timeframe]);
+
+  useEffect(() => {
     if (!trendResult) return;
     const { direction, score, signals } = trendResult;
-    const cfg = configRef.current;
     const prev = prevDirectionRef.current;
 
     const directionChanged = prev !== null && direction !== prev;
     const isActionable = direction === "bull" || direction === "bear";
-    const isStrong = Math.abs(score) >= cfg.minScore;
+    const isStrong = Math.abs(score) >= config.minScore;
 
     prevDirectionRef.current = direction;
 
-    if (!cfg.enabled || !directionChanged || !isActionable || !isStrong) return;
+    if (!config.enabled || !directionChanged || !isActionable || !isStrong) return;
 
     const now = Date.now();
     if (now - lastAlertTimeRef.current < getCooldown(timeframe)) return;
@@ -119,9 +119,9 @@ export function useTrendAlerts(
 
     setActiveAlerts((prev) => [alert, ...prev].slice(0, 3));
 
-    if (cfg.sound) playAlertSound(direction);
-    if (cfg.browser) fireBrowserNotification(alert);
-  }, [trendResult, symbol, timeframe]);
+    if (config.sound) playAlertSound(direction);
+    if (config.browser) fireBrowserNotification(alert);
+  }, [trendResult, symbol, timeframe, config]);
 
   return { activeAlerts, dismiss };
 }

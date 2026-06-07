@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -59,6 +59,7 @@ export function IndicatorSettingsDialog() {
         </DialogHeader>
         {target && (
           <SettingsForm
+            key={target}
             target={target}
             config={config}
             onSave={(patch) => { setConfig(patch); setTarget(null); }}
@@ -79,10 +80,6 @@ interface FormProps {
 
 function SettingsForm({ target, config, onSave, onReset }: FormProps) {
   const [draft, setDraft] = useState<IndicatorConfig>({ ...config });
-
-  useEffect(() => {
-    setDraft({ ...config });
-  }, [config, target]);
 
   const set = (k: keyof IndicatorConfig) => (n: number) =>
     setDraft((d) => ({ ...d, [k]: n }));

@@ -427,13 +427,18 @@ async function main() {
   const n1h = Math.min(1500, Math.ceil(N_15M / 4)  + 100);
   const n4h = Math.min(1000, Math.ceil(N_15M / 16) + 100);
 
-  const [c15m, c1h, c4h, c1w, c1M] = await Promise.all([
+  const [c15mRaw, c1hRaw, c4hRaw, c1wRaw, c1MRaw] = await Promise.all([
     fetchPaginated(SYMBOL, '15m', N_15M),
     fetchPaginated(SYMBOL, '1h',  n1h),
     fetchPaginated(SYMBOL, '4h',  n4h),
     fetchPaginated(SYMBOL, '1w',  200),
     fetchPaginated(SYMBOL, '1M',  60),
   ]);
+  const c15m = c15mRaw.slice(0, -1);
+  const c1h = c1hRaw.slice(0, -1);
+  const c4h = c4hRaw.slice(0, -1);
+  const c1w = c1wRaw.slice(0, -1);
+  const c1M = c1MRaw.slice(0, -1);
 
   if (c15m.length < WARMUP + 10) {
     console.error('No hay suficientes velas 15m. Reduce N_15M o prueba otro símbolo.');
