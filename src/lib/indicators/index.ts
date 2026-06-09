@@ -708,6 +708,192 @@ export function detectShortEntry(
   };
 }
 
+// ─── MTF Long Entry Signal ────────────────────────────────────────────────────
+// Estrategia simétrica a detectShortEntry:
+//
+//  1. FILTRO HTF: 1h, 4h, 1w, 1M todos alcistas (trendMeter)
+//  2. RETROCESO ACTIVO: precio en la mitad inferior del rango de las últimas
+//     30 velas de 15m (confirma retroceso bajista en curso, no caída libre)
+//  3. ZONA DE SOPORTE: EMA50, EMA200 en 15m, o el propio mínimo del retroceso
+//  4. MÍNIMO 2 DE 3 CONFIRMACIONES:
+//     a) ChoCh — cierre sobre el último máximo de estructura del retroceso
+//     b) RSI cross alcista — RSI bajó <35 en los últimos 5 bars y ahora sube
+//     c) Patrón de vela — Bullish Engulfing o Hammer
+
+export interface LongEntrySignal {
+  price: number;
+  stopLoss: number;
+  tp1: number;                     // Máximo del swing (inicio del retroceso)
+  tp2: number;                     // R:R 1:2 calculado
+  supportLevel: number;
+  supportType: "ema50" | "ema200" | "both" | "pullbackLow";
+  rsi15m: number;
+  pullbackHighPrice: number;
+  pullbackLowPrice: number;
+  pullbackStructureHigh: number | null;
+  confirmations: {
+    choch: boolean;
+    rsiOversoldCross: boolean;
+    bullishPattern: boolean;
+    confirmationPattern?: "bullishEngulfing" | "hammer";
+  };
+  htfScores: Record<string, number>;
+}
+
+export function detectLongEntry(
+  candles15m: Candle[],
+  candles1h: Candle[],
+  candles4h: Candle[],
+  candles1w: Candle[],
+  candles1M: Candle[],
+): LongEntrySignal | null {
+  candles15m = candles15m.filter((c) => c.isFinal !== false);
+  candles1h  = candles1h.filter((c) => c.isFinal !== false);
+  candles4h  = candles4h.filter((c) => c.isFinal !== false);
+  candles1w  = candles1w.filter((c) => c.isFinal !== false);
+  candles1M  = candles1M.filter((c) => c.isFinal !== false);
+
+  if (candles15m.length < 60) return null;
+
+  // ─── 1. Filtro HTF: todos deben ser alcistas ────────────────────────────────
+  const htfMap: Record<string, Candle[]> = {
+    "1h": candles1h,
+    "4h": candles4h,
+    "1w": candles1w,
+    "1M": candles1M,
+  };
+  const htfScores: Record<string, number> = {};
+  for (const [tf, candles] of Object.entries(htfMap)) {
+    if (candles.length < 50) return null;
+    const result = trendMeter(candles);
+    if (!result || result.direction !== "bull") return null;
+    htfScores[tf] = result.score;
+  }
+
+  // ─── 2. Detectar retroceso bajista activo en 15m ────────────────────────────
+  const len  = candles15m.length;
+  const curr = candles15m[len - 1];
+  const prev = candles15m[len - 2];
+  if (!curr || !prev) return null;
+
+  const last30     = candles15m.slice(-30);
+  const recentHigh = Math.max(...last30.map((c) => c.high));
+  const recentLow  = Math.min(...last30.map((c) => c.low));
+  const rangeSize  = recentHigh > 0 ? (recentHigh - recentLow) / recentLow : 0;
+
+  if (rangeSize < 0.008) return null;
+
+  // Precio debe estar en la mitad inferior del rango: confirma retroceso bajista,
+  // no caída libre sin rebote
+  const midRange = recentLow + (recentHigh - recentLow) * 0.5;
+  if (curr.close > midRange) return null;
+
+  // ─── 3. Zona de soporte ──────────────────────────────────────────────────────
+  const close     = curr.close;
+  const ema50Val  = ema(candles15m, 50).at(-1)?.value;
+  const ema200Val = ema(candles15m, 200).at(-1)?.value;
+
+  const nearEma50  = ema50Val  ? Math.abs(close - ema50Val)  / close < 0.025 : false;
+  const nearEma200 = ema200Val ? Math.abs(close - ema200Val) / close < 0.025 : false;
+
+  let supportLevel: number;
+  let supportType: LongEntrySignal["supportType"];
+  if (nearEma50 && nearEma200 && ema50Val && ema200Val) {
+    supportType  = "both";
+    supportLevel = (ema50Val + ema200Val) / 2;
+  } else if (nearEma50 && ema50Val) {
+    supportType  = "ema50";
+    supportLevel = ema50Val;
+  } else if (nearEma200 && ema200Val) {
+    supportType  = "ema200";
+    supportLevel = ema200Val;
+  } else {
+    supportType  = "pullbackLow";
+    supportLevel = recentLow;
+  }
+
+  // ─── 4a. Confirmación: RSI oversold cross ───────────────────────────────────
+  // El retroceso llevó el RSI a <35; ahora sube → agotamiento bajista
+  const rsiData = rsi(candles15m, 14);
+  const lastRsi = rsiData.at(-1)?.value;
+  const prevRsi = rsiData.at(-2)?.value;
+  if (lastRsi === undefined || prevRsi === undefined) return null;
+
+  const rsiMin5        = Math.min(...rsiData.slice(-5).map((p) => p.value));
+  const rsiOversoldCross = rsiMin5 < 35 && lastRsi > prevRsi;
+
+  // ─── 4b. Confirmación: ChoCh (Cambio de Carácter alcista) ───────────────────
+  // Busca el último máximo de estructura dentro del retroceso (últimas 20 velas,
+  // por debajo del máximo absoluto reciente). Un cierre por encima indica que el
+  // retroceso rompió estructura hacia arriba → señal de inversión alcista.
+  let pullbackStructureHigh: number | null = null;
+  const pullbackZone = candles15m.slice(-20);
+  for (let i = 1; i < pullbackZone.length - 1; i++) {
+    const p = pullbackZone[i - 1];
+    const c = pullbackZone[i];
+    const n = pullbackZone[i + 1];
+    if (c.high > p.high && c.high > n.high && c.high < recentHigh * 0.999) {
+      pullbackStructureHigh = c.high;
+    }
+  }
+  const choch = pullbackStructureHigh !== null && close > pullbackStructureHigh;
+
+  // ─── 4c. Confirmación: patrón de vela alcista ────────────────────────────────
+  let confirmationPattern: "bullishEngulfing" | "hammer" | undefined;
+
+  if (
+    prev.close < prev.open &&
+    curr.close > curr.open &&
+    curr.open  <= prev.close &&
+    curr.close >= prev.open
+  ) {
+    confirmationPattern = "bullishEngulfing";
+  }
+
+  if (!confirmationPattern) {
+    const bodySize  = Math.abs(curr.close - curr.open);
+    const range     = curr.high - curr.low;
+    const upperWick = curr.high - Math.max(curr.open, curr.close);
+    const lowerWick = Math.min(curr.open, curr.close) - curr.low;
+    if (
+      range > 0 &&
+      bodySize  < range * 0.4 &&
+      lowerWick > bodySize * 2 &&
+      upperWick < bodySize * 0.6 &&
+      (curr.close - curr.low) / range > 0.55
+    ) {
+      confirmationPattern = "hammer";
+    }
+  }
+
+  const bullishPattern = confirmationPattern !== undefined;
+
+  // ─── 5. Requiere mínimo 2 de 3 confirmaciones ────────────────────────────────
+  const confirmationCount = [choch, rsiOversoldCross, bullishPattern].filter(Boolean).length;
+  if (confirmationCount < 2) return null;
+
+  // ─── 6. Entry, Stop Loss y Take Profit ──────────────────────────────────────
+  const stopLoss = recentLow * 0.997;               // 0.3% por debajo del mínimo del retroceso
+  const tp1      = recentHigh;                       // Máximo del swing (inicio del retroceso)
+  const risk     = close - stopLoss;
+  const tp2      = risk > 0 ? close + risk * 2 : tp1; // R:R 1:2
+
+  return {
+    price: close,
+    stopLoss,
+    tp1,
+    tp2,
+    supportLevel,
+    supportType,
+    rsi15m: lastRsi,
+    pullbackHighPrice: recentHigh,
+    pullbackLowPrice:  recentLow,
+    pullbackStructureHigh,
+    confirmations: { choch, rsiOversoldCross, bullishPattern, confirmationPattern },
+    htfScores,
+  };
+}
+
 // ─── Trend Meter Series (batch) ───────────────────────────────────────────────
 
 export interface TrendMeterSeriesPoint {
