@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { fetchKlines } from "@/lib/binance/rest";
 import { detectShortEntry, type ShortEntrySignal } from "@/lib/indicators";
 import type { AlertConfig } from "@/lib/store/chart-store";
+import { logSignalTrade } from "@/hooks/useTradeMonitor";
 
 function playAlertSound() {
   try {
@@ -71,6 +72,22 @@ export function useMtfShortSignal(symbol: string, config: AlertConfig) {
       if (config.sound)   playAlertSound();
       if (config.browser) fireBrowserNotification(symbol, signal);
       if (telegramEnabled) void sendShortAlert(signal, symbol);
+
+      void logSignalTrade({
+        symbol,
+        direction: "SHORT",
+        entryPrice: signal.price,
+        stopLoss:   signal.stopLoss,
+        tp1:        signal.tp1,
+        tp2:        signal.tp2,
+        confirmations: {
+          choch:          signal.confirmations.choch,
+          rsiCross:       signal.confirmations.rsiOverboughtCross,
+          candlePattern:  signal.confirmations.bearishPattern,
+          patternName:    signal.confirmations.confirmationPattern,
+        },
+        htfScores: signal.htfScores,
+      });
     }
 
     void check();

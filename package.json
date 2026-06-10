@@ -14,7 +14,12 @@
     "validate:wf": "node scripts/validate-walk-forward.mjs",
     "validate:ms": "node scripts/validate-multi-symbol.mjs",
     "validate:sens": "node scripts/validate-sensitivity.mjs",
-    "validate:all": "node scripts/validate-all.mjs"
+    "validate:all": "node scripts/validate-all.mjs",
+    "backtest:full": "node scripts/backtest-full.mjs",
+    "backtest:full2": "node scripts/backtest-full.mjs BTCUSDT 2",
+    "backtest:full3": "node scripts/backtest-full.mjs BTCUSDT 3",
+    "backtest:full4": "node scripts/backtest-full.mjs BTCUSDT 4",
+    "backtest:multi": "node scripts/backtest-multi-full.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",

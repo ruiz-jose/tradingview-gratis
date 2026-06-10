@@ -43,6 +43,12 @@ next-env.d.ts
 # claude code local settings (per-developer)
 .claude/settings.local.json
 
+# trade journal local data
+/data/
+
+# caché de datos históricos de Binance (archivos grandes, regenerables)
+/scripts/cache/
+
 # additional secret patterns
 *.key
 id_rsa*

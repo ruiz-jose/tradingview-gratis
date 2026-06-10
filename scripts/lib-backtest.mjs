@@ -205,7 +205,8 @@ export function detectSignalP(candles, rsiVals, i, p = {}) {
     }
   }
 
-  // 5. Mínimo minConfirms de 3 confirmaciones
+  // 5. RSI obligatorio + mínimo 1 de los otros 2
+  if (!rsiCross) return null;
   const count = [choch, rsiCross, bearPat].filter(Boolean).length;
   if (count < minConfirms) return null;
 

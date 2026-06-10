@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { fetchKlines } from "@/lib/binance/rest";
 import { detectLongEntry, type LongEntrySignal } from "@/lib/indicators";
 import type { AlertConfig } from "@/lib/store/chart-store";
+import { logSignalTrade } from "@/hooks/useTradeMonitor";
 
 function playAlertSound() {
   try {
@@ -68,6 +69,22 @@ export function useMtfLongSignal(symbol: string, config: AlertConfig) {
       if (config.sound)   playAlertSound();
       if (config.browser) fireBrowserNotification(symbol, signal);
       if (telegramEnabled) void sendLongAlert(signal, symbol);
+
+      void logSignalTrade({
+        symbol,
+        direction: "LONG",
+        entryPrice: signal.price,
+        stopLoss:   signal.stopLoss,
+        tp1:        signal.tp1,
+        tp2:        signal.tp2,
+        confirmations: {
+          choch:          signal.confirmations.choch,
+          rsiCross:       signal.confirmations.rsiOversoldCross,
+          candlePattern:  signal.confirmations.bullishPattern,
+          patternName:    signal.confirmations.confirmationPattern,
+        },
+        htfScores: signal.htfScores,
+      });
     }
 
     void check();

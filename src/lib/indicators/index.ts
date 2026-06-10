@@ -682,7 +682,10 @@ export function detectShortEntry(
 
   const bearishPattern = confirmationPattern !== undefined;
 
-  // ─── 5. Requiere mínimo 2 de 3 confirmaciones ────────────────────────────────
+  // ─── 5. RSI obligatorio + mínimo 1 de los otros 2 ────────────────────────────
+  // El análisis de backtest mostró que ChoCh+Vela sin RSI tiene PF 0.83 (perdedor).
+  // RSI+cualquiera tiene PF 3.82. RSI es la confirmación de mayor calidad.
+  if (!rsiOverboughtCross) return null;
   const confirmationCount = [choch, rsiOverboughtCross, bearishPattern].filter(Boolean).length;
   if (confirmationCount < 2) return null;
 
@@ -868,7 +871,10 @@ export function detectLongEntry(
 
   const bullishPattern = confirmationPattern !== undefined;
 
-  // ─── 5. Requiere mínimo 2 de 3 confirmaciones ────────────────────────────────
+  // ─── 5. RSI obligatorio + mínimo 1 de los otros 2 ────────────────────────────
+  // El análisis de backtest mostró que ChoCh+Vela sin RSI tiene PF 0.83 (perdedor).
+  // RSI+cualquiera tiene PF 3.82. RSI es la confirmación de mayor calidad.
+  if (!rsiOversoldCross) return null;
   const confirmationCount = [choch, rsiOversoldCross, bullishPattern].filter(Boolean).length;
   if (confirmationCount < 2) return null;
 
