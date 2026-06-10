@@ -211,8 +211,9 @@ export function PriceChart({ symbol, timeframe, usePreset = false }: Props) {
   const measureRef = useRef(measure); measureRef.current = measure;
 
   useTelegramAlerts(trendResult, symbol, timeframe, alertConfig);
-  useMtfShortSignal(symbol, alertConfig);
-  useMtfLongSignal(symbol, alertConfig);
+  // Señales MTF fijas en BTCUSDT — estrategia de par único
+  useMtfShortSignal("BTCUSDT", alertConfig);
+  useMtfLongSignal("BTCUSDT", alertConfig);
   const { activeAlerts, dismiss } = useTrendAlerts(trendResult, symbol, timeframe, alertConfig);
 
   function recomputePaneOffsets() {
