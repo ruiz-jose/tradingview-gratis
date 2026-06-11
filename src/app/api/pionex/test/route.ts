@@ -2,8 +2,6 @@ import { NextResponse } from "next/server";
 import { pionexFetch } from "@/lib/pionex/auth";
 import type { PionexBalanceResponse, PionexApiError } from "@/lib/pionex/types";
 
-export const dynamic = "force-dynamic";
-
 export async function GET() {
   try {
     const res  = await pionexFetch("GET", "/api/v1/account/balances");
