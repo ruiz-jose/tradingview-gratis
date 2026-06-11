@@ -2,7 +2,16 @@ import { NextResponse } from "next/server";
 import { pionexFetch } from "@/lib/pionex/auth";
 import type { PionexBalanceResponse, PionexApiError } from "@/lib/pionex/types";
 
+export const dynamic = "force-static";
+
 export async function GET() {
+  if (process.env.NEXT_STATIC_EXPORT === "true") {
+    return NextResponse.json(
+      { ok: false, error: "Endpoint no disponible en build estático" },
+      { status: 501 },
+    );
+  }
+
   try {
     const res  = await pionexFetch("GET", "/api/v1/account/balances");
     const data = (await res.json()) as PionexBalanceResponse | PionexApiError;
