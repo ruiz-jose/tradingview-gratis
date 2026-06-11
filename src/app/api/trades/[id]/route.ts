@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { closeTrade } from "@/lib/trade-logger";
 
+export function generateStaticParams() {
+  return [];
+}
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
