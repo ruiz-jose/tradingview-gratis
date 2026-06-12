@@ -1,8 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 
+export const dynamic = "force-static";
+
 const TELEGRAM_API = "https://api.telegram.org";
 
+export async function GET() {
+  return NextResponse.json({ error: "Method not allowed" }, { status: 405 });
+}
+
 export async function POST(req: NextRequest) {
+  if (process.env.NEXT_STATIC_EXPORT === "true") {
+    return NextResponse.json(
+      { error: "Endpoint no disponible en build estático" },
+      { status: 501 },
+    );
+  }
+
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
 
