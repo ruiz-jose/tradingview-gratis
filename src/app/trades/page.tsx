@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useTradeMonitor } from "@/hooks/useTradeMonitor";
 import type { Trade } from "@/lib/trade-logger";
+import { getAllTrades, closeTrade } from "@/lib/trades-client";
 
 function pnlColor(v?: number) {
   if (v === undefined) return "text-zinc-400";
@@ -123,28 +124,23 @@ export default function TradesPage() {
   // Activa el monitor de SL/TP en tiempo real
   useTradeMonitor();
 
-  const loadTrades = useCallback(async () => {
+  const loadTrades = useCallback(() => {
     try {
-      const res = await fetch("/api/trades");
-      if (res.ok) setTrades(await res.json() as Trade[]);
+      setTrades(getAllTrades());
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    void loadTrades();
-    const id = setInterval(() => void loadTrades(), 60_000);
+    loadTrades();
+    const id = setInterval(() => loadTrades(), 60_000);
     return () => clearInterval(id);
   }, [loadTrades]);
 
-  const handleClose = useCallback(async (id: string, closePrice: number, closeReason: Trade["closeReason"]) => {
-    await fetch(`/api/trades/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ closePrice, closeReason }),
-    });
-    await loadTrades();
+  const handleClose = useCallback((id: string, closePrice: number, closeReason: Trade["closeReason"]) => {
+    closeTrade(id, closePrice, closeReason);
+    loadTrades();
   }, [loadTrades]);
 
   const open   = trades.filter(t => t.status === "open");
@@ -225,7 +221,7 @@ export default function TradesPage() {
         <p className="mt-6 text-xs text-zinc-700">
           El monitor revisa SL/TP cada minuto y cierra trades automáticamente.
           Podés cerrar manualmente con el botón "Cerrar".
-          Los datos se guardan en <code>data/trades.json</code>.
+          Los datos se guardan en el navegador (<code>localStorage</code>).
         </p>
       </div>
     </div>
