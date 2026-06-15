@@ -5,6 +5,7 @@ import { fetchKlines } from "@/lib/binance/rest";
 import { detectShortEntry, type ShortEntrySignal } from "@/lib/indicators";
 import type { AlertConfig } from "@/lib/store/chart-store";
 import { logSignalTrade } from "@/hooks/useTradeMonitor";
+import { getBinanceWS } from "@/lib/binance/ws";
 
 function playAlertSound() {
   try {
@@ -36,15 +37,15 @@ function fireBrowserNotification(symbol: string, signal: ShortEntrySignal) {
   });
 }
 
-// Comprueba al inicio y cada vez que cierra una vela de 15m
-const CHECK_INTERVAL_MS = 15 * 60_000;
 // Mínimo 4h entre alertas para el mismo símbolo (evita spam)
 const SIGNAL_COOLDOWN_MS = 4 * 60 * 60_000;
 
 export function useMtfShortSignal(symbol: string, config: AlertConfig) {
-  const lastSignalRef = useRef<number>(0);
-  const alertsEnabled = config.enabled;
+  const lastSignalRef   = useRef<number>(0);
+  const alertsEnabled   = config.enabled;
   const telegramEnabled = config.telegram;
+  const configRef       = useRef(config);
+  configRef.current     = config;
 
   useEffect(() => {
     // Al cambiar de símbolo, resetear cooldown para dar señal fresca si aplica
@@ -69,9 +70,10 @@ export function useMtfShortSignal(symbol: string, config: AlertConfig) {
 
       lastSignalRef.current = Date.now();
 
-      if (config.sound)   playAlertSound();
-      if (config.browser) fireBrowserNotification(symbol, signal);
-      if (telegramEnabled) void sendShortAlert(signal, symbol);
+      const cfg = configRef.current;
+      if (cfg.sound)   playAlertSound();
+      if (cfg.browser) fireBrowserNotification(symbol, signal);
+      if (cfg.telegram) void sendShortAlert(signal, symbol);
 
       void logSignalTrade({
         symbol,
@@ -90,9 +92,14 @@ export function useMtfShortSignal(symbol: string, config: AlertConfig) {
       });
     }
 
+    // Check immediately on mount, then on every 15m candle close via WebSocket
     void check();
-    const id = setInterval(() => void check(), CHECK_INTERVAL_MS);
-    return () => clearInterval(id);
+    const unsubscribe = getBinanceWS().subscribeKline({
+      symbol,
+      interval: "15m",
+      onCandle: (candle) => { if (candle.isFinal) void check(); },
+    });
+    return unsubscribe;
   }, [symbol, alertsEnabled, telegramEnabled]);
 }
 
