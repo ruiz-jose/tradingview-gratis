@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { Trade } from "@/lib/trade-logger";
+import { getOpenTrades, closeTrade, logTrade } from "@/lib/trades-client";
 
 const POLL_INTERVAL_MS = 60_000; // verifica SL/TP cada 1 minuto
 
@@ -17,29 +18,6 @@ async function getCurrentPrice(symbol: string): Promise<number | null> {
   } catch {
     return null;
   }
-}
-
-async function getOpenTrades(): Promise<Trade[]> {
-  try {
-    const res = await fetch("/api/trades");
-    if (!res.ok) return [];
-    const trades = await res.json() as Trade[];
-    return trades.filter(t => t.status === "open");
-  } catch {
-    return [];
-  }
-}
-
-async function closeTradeApi(
-  id: string,
-  closePrice: number,
-  closeReason: Trade["closeReason"],
-): Promise<void> {
-  await fetch(`/api/trades/${id}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ closePrice, closeReason }),
-  }).catch(() => {});
 }
 
 async function sendTelegramClose(trade: Trade, closePrice: number, closeReason: string, pnlPct: number): Promise<void> {
@@ -72,7 +50,7 @@ export function useTradeMonitor() {
       processingRef.current = true;
 
       try {
-        const openTrades = await getOpenTrades();
+        const openTrades = getOpenTrades();
         if (!openTrades.length) return;
 
         // Agrupar por símbolo para hacer una sola petición de precio por activo
@@ -106,7 +84,7 @@ export function useTradeMonitor() {
             ? ((closePrice - trade.entryPrice) / trade.entryPrice) * 100 - 0.2
             : ((trade.entryPrice - closePrice) / trade.entryPrice) * 100 - 0.2;
 
-          await closeTradeApi(trade.id, closePrice, closeReason);
+          closeTrade(trade.id, closePrice, closeReason);
           await sendTelegramClose(trade, closePrice, closeReason, pnlPct);
         }
       } finally {
@@ -132,10 +110,10 @@ export interface LogSignalInput {
 }
 
 // Función helper exportada para que los hooks de señal registren un trade nuevo
-export async function logSignalTrade(input: LogSignalInput): Promise<void> {
-  await fetch("/api/trades", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  }).catch(() => {});
+export function logSignalTrade(input: LogSignalInput): void {
+  try {
+    logTrade(input);
+  } catch {
+    // silently ignore errors (e.g. localStorage unavailable)
+  }
 }
